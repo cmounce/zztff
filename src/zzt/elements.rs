@@ -217,6 +217,54 @@ impl Element {
             _ => None,
         }
     }
+
+    /// Map alias name to parameter number (1, 2, or 3) based on element type.
+    pub fn alias_to_param(self, alias: &str) -> Option<u8> {
+        if self.p1_alias() == Some(alias) {
+            Some(1)
+        } else if self.p2_alias() == Some(alias) {
+            Some(2)
+        } else if self.p3_alias() == Some(alias) {
+            Some(3)
+        } else {
+            None
+        }
+    }
+}
+
+/// Resolve alias name to parameter number, with optional element context.
+/// Falls back to checking all known aliases if element is None.
+pub fn resolve_alias(alias: &str, element: Option<Element>) -> Option<u8> {
+    // If we have an element, use its specific alias mapping
+    if let Some(elem) = element {
+        if let Some(param) = elem.alias_to_param(alias) {
+            return Some(param);
+        }
+    }
+
+    // Fallback: check all known aliases
+    // p1 aliases
+    if matches!(
+        alias,
+        "char" | "sensitivity" | "intelligence" | "start_time"
+    ) {
+        return Some(1);
+    }
+
+    // p2 aliases
+    if matches!(
+        alias,
+        "rate" | "period" | "resting_time" | "speed" | "firing_rate" | "deviance"
+    ) {
+        return Some(2);
+    }
+
+    // p3 aliases
+    if matches!(alias, "destination" | "firing_type") {
+        return Some(3);
+    }
+
+    None
 }
 
 /// Get the human-readable name for an element ID, or describe unknown elements.

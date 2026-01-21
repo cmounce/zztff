@@ -23,6 +23,12 @@ pub enum ParseError {
 
     #[error("parse error: {0}")]
     ParseError(String),
+
+    #[error("text parse error: {message}")]
+    TextParseError { message: String },
+
+    #[error("invalid hex in terrain: {0}")]
+    InvalidHex(String),
 }
 
 impl<I> NomParseError<I> for ParseError {
