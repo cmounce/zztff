@@ -248,10 +248,7 @@ fn comment(input: &str) -> IResult<&str, ()> {
 
 /// Skip whitespace and comments.
 fn ws(input: &str) -> IResult<&str, ()> {
-    value(
-        (),
-        many0(alt((value((), multispace1), comment))),
-    ).parse(input)
+    value((), many0(alt((value((), multispace1), comment)))).parse(input)
 }
 
 /// Parse a section header like [world], [board 0], [stat 1].
@@ -346,10 +343,7 @@ fn triple_quoted_string(input: &str) -> IResult<&str, String> {
 
 /// Parse an integer (possibly negative).
 fn integer(input: &str) -> IResult<&str, i64> {
-    map_res(
-        recognize(pair(opt(char('-')), digit1)),
-        |s: &str| s.parse(),
-    ).parse(input)
+    map_res(recognize(pair(opt(char('-')), digit1)), |s: &str| s.parse()).parse(input)
 }
 
 /// Parse a boolean value.
@@ -412,7 +406,8 @@ fn parse_value(input: &str) -> IResult<&str, Value> {
         map(tuple2, |(a, b)| Value::Tuple2(a, b)),
         map(boolean, Value::Bool),
         map(integer, Value::Int),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 /// Parse a key = value pair.
@@ -444,7 +439,9 @@ fn parse_hex_grid(input: &str) -> Result<(&str, Vec<u8>), ParseError> {
         // Parse 60 hex pairs
         for _ in 0..60 {
             if input.len() < 2 {
-                return Err(ParseError::InvalidHex("unexpected end of hex data".to_string()));
+                return Err(ParseError::InvalidHex(
+                    "unexpected end of hex data".to_string(),
+                ));
             }
             let hex_str = &input[..2];
             let byte = u8::from_str_radix(hex_str, 16)
