@@ -11,7 +11,7 @@ use nom::{
     sequence::pair,
 };
 
-use super::elements::{Element, element_name, resolve_alias};
+use super::elements::{Element, element_id_from_name, element_name, resolve_alias};
 use super::error::ParseError;
 use super::parse::{Board, Program, Stat, Tile, World};
 
@@ -206,10 +206,14 @@ fn write_stat(output: &mut String, index: usize, stat: &Stat, element: Option<u8
     kv!(output, "y_step", stat.y_step, 0);
 
     if stat.under.element != Element::Empty as u8 || stat.under.color != 0x0f {
+        let elem_name = match Element::from_u8(stat.under.element) {
+            Some(e) => e.name().to_string(),
+            None => format!("unknown_{}", stat.under.element),
+        };
         writeln!(
             output,
-            "under = ({}, {})",
-            stat.under.element, stat.under.color
+            "under = ({}, 0x{:02x})",
+            elem_name, stat.under.color
         )
         .unwrap();
     }
@@ -374,18 +378,44 @@ fn boolean(input: &str) -> IResult<&str, bool> {
     alt((value(true, tag("true")), value(false, tag("false")))).parse(input)
 }
 
-/// Parse a tuple like (element, color).
+/// Parse a hex number like 0x0f or 0x1F.
+fn hex_u8(input: &str) -> IResult<&str, u8> {
+    let (input, _) = tag("0x").parse(input)?;
+    let (input, hex_str) = take_while1(|c: char| c.is_ascii_hexdigit()).parse(input)?;
+    match u8::from_str_radix(hex_str, 16) {
+        Ok(n) => Ok((input, n)),
+        Err(_) => Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::HexDigit,
+        ))),
+    }
+}
+
+/// Parse a tuple like (element_name, 0xNN) or legacy (element_id, color).
+/// Supports both new format: (empty, 0x0f) and legacy: (0, 15).
 fn tuple2(input: &str) -> IResult<&str, (u8, u8)> {
     let (input, _) = char('(').parse(input)?;
     let (input, _) = multispace0.parse(input)?;
-    let (input, a) = map_res(digit1, |s: &str| s.parse::<u8>()).parse(input)?;
+
+    // First value: element name (identifier) or decimal number
+    let (input, element_id) = alt((
+        // Element name (identifier) -> convert to ID
+        map(identifier, |name| element_id_from_name(name).unwrap_or(0)),
+        // Legacy: decimal element ID
+        map_res(digit1, |s: &str| s.parse::<u8>()),
+    ))
+    .parse(input)?;
+
     let (input, _) = multispace0.parse(input)?;
     let (input, _) = char(',').parse(input)?;
     let (input, _) = multispace0.parse(input)?;
-    let (input, b) = map_res(digit1, |s: &str| s.parse::<u8>()).parse(input)?;
+
+    // Second value: hex color (0xNN) or decimal color
+    let (input, color) = alt((hex_u8, map_res(digit1, |s: &str| s.parse::<u8>()))).parse(input)?;
+
     let (input, _) = multispace0.parse(input)?;
     let (input, _) = char(')').parse(input)?;
-    Ok((input, (a, b)))
+    Ok((input, (element_id, color)))
 }
 
 /// Parse a string array like ["foo", "bar", ""].

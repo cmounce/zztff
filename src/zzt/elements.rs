@@ -274,3 +274,70 @@ pub fn element_name(id: u8) -> String {
         None => format!("unknown ({})", id),
     }
 }
+
+/// Convert an element name back to its ID.
+/// Handles "unknown_N" format for unknown element IDs.
+pub fn element_id_from_name(name: &str) -> Option<u8> {
+    // Handle "unknown_N" format first
+    if let Some(suffix) = name.strip_prefix("unknown_") {
+        return suffix.parse().ok();
+    }
+    // Match all known element names to their IDs
+    match name {
+        "empty" => Some(0),
+        "board_edge" => Some(1),
+        "messenger" => Some(2),
+        "monitor" => Some(3),
+        "player" => Some(4),
+        "ammo" => Some(5),
+        "torch" => Some(6),
+        "gem" => Some(7),
+        "key" => Some(8),
+        "door" => Some(9),
+        "scroll" => Some(10),
+        "passage" => Some(11),
+        "duplicator" => Some(12),
+        "bomb" => Some(13),
+        "energizer" => Some(14),
+        "star" => Some(15),
+        "clockwise" => Some(16),
+        "counter" => Some(17),
+        "bullet" => Some(18),
+        "water" => Some(19),
+        "forest" => Some(20),
+        "solid" => Some(21),
+        "normal" => Some(22),
+        "breakable" => Some(23),
+        "boulder" => Some(24),
+        "sliderns" => Some(25),
+        "sliderew" => Some(26),
+        "fake" => Some(27),
+        "invisible" => Some(28),
+        "blinkwall" => Some(29),
+        "transporter" => Some(30),
+        "line" => Some(31),
+        "ricochet" => Some(32),
+        "blink_ray_h" => Some(33),
+        "bear" => Some(34),
+        "ruffian" => Some(35),
+        "object" => Some(36),
+        "slime" => Some(37),
+        "shark" => Some(38),
+        "spinninggun" => Some(39),
+        "pusher" => Some(40),
+        "lion" => Some(41),
+        "tiger" => Some(42),
+        "blink_ray_v" => Some(43),
+        "head" => Some(44),
+        "segment" => Some(45),
+        // 46 is unused
+        "text_blue" => Some(47),
+        "text_green" => Some(48),
+        "text_cyan" => Some(49),
+        "text_red" => Some(50),
+        "text_purple" => Some(51),
+        "text_brown" => Some(52),
+        "text_black" => Some(53),
+        _ => None,
+    }
+}
