@@ -485,10 +485,12 @@ fn parse_keys(s: &str) -> [bool; 7] {
     keys
 }
 
-/// Check if the next non-whitespace is a section header.
+/// Check if the next non-whitespace/non-comment is a section header.
 fn peek_section(input: &str) -> bool {
-    let trimmed = input.trim_start();
-    trimmed.starts_with('[')
+    match ws(input) {
+        Ok((rest, _)) => rest.starts_with('['),
+        Err(_) => false,
+    }
 }
 
 /// Check if input is at end or only has whitespace/comments.
@@ -862,9 +864,9 @@ fn parse_board_section(input: &str) -> Result<(&str, Board), ParseError> {
 
     // Parse stats
     while !at_end(input) {
-        // Check if next section is a stat
-        let trimmed = input.trim_start();
-        if !trimmed.starts_with("[stat") {
+        // Check if next section is a stat (skip whitespace and comments first)
+        let after_ws = ws(input).map(|(rest, _)| rest).unwrap_or(input);
+        if !after_ws.starts_with("[stat") {
             break;
         }
         let (next, stat) = parse_stat_section(input, &board.tiles)?;
