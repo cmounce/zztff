@@ -49,7 +49,7 @@ pub fn world_to_text(world: &World) -> String {
 
     for (i, board) in world.boards.iter().enumerate() {
         output.push_str("\n\n");
-        write_board(&mut output, i, board);
+        write_board(&mut output, Some(i), board);
     }
 
     output
@@ -58,7 +58,7 @@ pub fn world_to_text(world: &World) -> String {
 /// Convert a standalone Board to its text representation.
 pub fn board_to_text(board: &Board) -> String {
     let mut output = String::new();
-    write_board(&mut output, 0, board);
+    write_board(&mut output, None, board);
     output
 }
 
@@ -111,9 +111,12 @@ fn keys_to_string(keys: &[bool; 7]) -> String {
         .collect()
 }
 
-fn write_board(output: &mut String, index: usize, board: &Board) {
+fn write_board(output: &mut String, index: Option<usize>, board: &Board) {
     // Header cluster (always present)
-    writeln!(output, "[board {}]", index).unwrap();
+    match index {
+        Some(i) => writeln!(output, "[board {}]", i).unwrap(),
+        None => output.push_str("[board]\n"),
+    }
     writeln!(output, "title = {:?}", board.name).unwrap();
 
     // Terrain cluster (always present)
