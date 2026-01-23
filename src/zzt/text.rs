@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Write;
 
 use nom::{
@@ -610,10 +611,15 @@ fn element_at(tiles: &[Tile], x: u8, y: u8) -> Option<u8> {
 }
 
 /// Parse a [stat N] section.
-fn parse_stat_section<'a>(input: &'a str, tiles: &[Tile]) -> Result<(&'a str, Stat), ParseError> {
-    let (input, _) = section_header("stat")(input).map_err(|e| ParseError::TextParseError {
-        message: format!("expected [stat] section: {:?}", e),
-    })?;
+/// Returns (remaining input, stat, optional ephemeral ID).
+fn parse_stat_section<'a>(
+    input: &'a str,
+    tiles: &[Tile],
+) -> Result<(&'a str, Stat, Option<usize>), ParseError> {
+    let (input, ephemeral_id) =
+        section_header("stat")(input).map_err(|e| ParseError::TextParseError {
+            message: format!("expected [stat] section: {:?}", e),
+        })?;
 
     // First pass: collect all key-value pairs
     let mut pairs: Vec<(&str, Value)> = Vec::new();
@@ -751,14 +757,16 @@ fn parse_stat_section<'a>(input: &'a str, tiles: &[Tile]) -> Result<(&'a str, St
         }
     }
 
-    Ok((input, stat))
+    Ok((input, stat, ephemeral_id))
 }
 
 /// Parse a [board N] section.
-fn parse_board_section(input: &str) -> Result<(&str, Board), ParseError> {
-    let (input, _) = section_header("board")(input).map_err(|e| ParseError::TextParseError {
-        message: format!("expected [board] section: {:?}", e),
-    })?;
+/// Returns (remaining input, board, optional ephemeral ID).
+fn parse_board_section(input: &str) -> Result<(&str, Board, Option<usize>), ParseError> {
+    let (input, ephemeral_id) =
+        section_header("board")(input).map_err(|e| ParseError::TextParseError {
+            message: format!("expected [board] section: {:?}", e),
+        })?;
 
     // Parse title first (required before terrain)
     let (input, (_, title_value)) =
@@ -862,30 +870,118 @@ fn parse_board_section(input: &str) -> Result<(&str, Board), ParseError> {
         }
     }
 
-    // Parse stats
+    // Parse stats with ephemeral IDs
+    let mut stats_with_ids: Vec<(Stat, Option<usize>)> = Vec::new();
     while !at_end(input) {
         // Check if next section is a stat (skip whitespace and comments first)
         let after_ws = ws(input).map(|(rest, _)| rest).unwrap_or(input);
         if !after_ws.starts_with("[stat") {
             break;
         }
-        let (next, stat) = parse_stat_section(input, &board.tiles)?;
-        board.stats.push(stat);
+        let (next, stat, stat_ephemeral_id) = parse_stat_section(input, &board.tiles)?;
+        stats_with_ids.push((stat, stat_ephemeral_id));
         input = next;
     }
 
-    Ok((input, board))
+    // Build stat ID -> index mapping
+    let stat_map: HashMap<usize, usize> = stats_with_ids
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, (_, id))| id.map(|id| (id, idx)))
+        .collect();
+
+    // Move stats into board
+    for (stat, _) in stats_with_ids {
+        board.stats.push(stat);
+    }
+
+    // Remap stat references
+    remap_stat_refs(&mut board, &stat_map);
+
+    Ok((input, board, ephemeral_id))
+}
+
+/// Remap a board reference using the ephemeral ID -> index mapping.
+/// Returns the value unchanged if no mapping exists.
+fn remap_board_ref(value: u8, map: &HashMap<usize, usize>) -> u8 {
+    map.get(&(value as usize))
+        .map(|&idx| idx as u8)
+        .unwrap_or(value)
+}
+
+/// Remap board references in a board's exits and passage stats.
+fn remap_board_refs(board: &mut Board, map: &HashMap<usize, usize>) {
+    board.exit_north = remap_board_ref(board.exit_north, map);
+    board.exit_south = remap_board_ref(board.exit_south, map);
+    board.exit_east = remap_board_ref(board.exit_east, map);
+    board.exit_west = remap_board_ref(board.exit_west, map);
+
+    // Remap passage destinations (p3 for Passage elements)
+    for stat in &mut board.stats {
+        let element = element_at(&board.tiles, stat.x, stat.y);
+        if element == Some(Element::Passage as u8) {
+            stat.p3 = remap_board_ref(stat.p3, map);
+        }
+    }
+}
+
+/// Remap stat references (follower, leader, bind) using ephemeral ID -> index mapping.
+fn remap_stat_refs(board: &mut Board, map: &HashMap<usize, usize>) {
+    for stat in &mut board.stats {
+        // Remap follower (-1 means none)
+        if stat.follower >= 0 {
+            if let Some(&new_idx) = map.get(&(stat.follower as usize)) {
+                stat.follower = new_idx as i16;
+            }
+        }
+        // Remap leader (-1 means none)
+        if stat.leader >= 0 {
+            if let Some(&new_idx) = map.get(&(stat.leader as usize)) {
+                stat.leader = new_idx as i16;
+            }
+        }
+        // Remap bind references
+        if let Program::Bound(idx) = &stat.program {
+            if let Some(&new_idx) = map.get(&(*idx as usize)) {
+                stat.program = Program::Bound(new_idx as u16);
+            }
+        }
+    }
 }
 
 /// Convert text to a World.
 pub fn text_to_world(text: &str) -> Result<World, ParseError> {
     let (input, mut world) = parse_world_section(text)?;
 
+    // Collect boards with their ephemeral IDs
+    let mut boards_with_ids: Vec<(Board, Option<usize>)> = Vec::new();
     let mut input = input;
     while !at_end(input) {
-        let (next, board) = parse_board_section(input)?;
-        world.boards.push(board);
+        let (next, board, ephemeral_id) = parse_board_section(input)?;
+        boards_with_ids.push((board, ephemeral_id));
         input = next;
+    }
+
+    // Build board ID -> index mapping
+    let board_map: HashMap<usize, usize> = boards_with_ids
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, (_, id))| id.map(|id| (id, idx)))
+        .collect();
+
+    // Move boards into world
+    for (board, _) in boards_with_ids {
+        world.boards.push(board);
+    }
+
+    // Remap world.starting_board
+    if let Some(&new_idx) = board_map.get(&(world.starting_board as usize)) {
+        world.starting_board = new_idx as i16;
+    }
+
+    // Remap board references in each board
+    for board in &mut world.boards {
+        remap_board_refs(board, &board_map);
     }
 
     Ok(world)
@@ -893,6 +989,6 @@ pub fn text_to_world(text: &str) -> Result<World, ParseError> {
 
 /// Convert text to a Board.
 pub fn text_to_board(text: &str) -> Result<Board, ParseError> {
-    let (_, board) = parse_board_section(text)?;
+    let (_, board, _) = parse_board_section(text)?;
     Ok(board)
 }
