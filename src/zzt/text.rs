@@ -48,7 +48,7 @@ pub fn world_to_text(world: &World) -> String {
     write_world_header(&mut output, world);
 
     for (i, board) in world.boards.iter().enumerate() {
-        output.push('\n');
+        output.push_str("\n\n");
         write_board(&mut output, i, board);
     }
 
@@ -112,13 +112,38 @@ fn keys_to_string(keys: &[bool; 7]) -> String {
 }
 
 fn write_board(output: &mut String, index: usize, board: &Board) {
+    // Header cluster (always present)
     writeln!(output, "[board {}]", index).unwrap();
     writeln!(output, "title = {:?}", board.name).unwrap();
-    output.push('\n');
 
+    // Terrain cluster (always present)
+    output.push('\n');
     write_terrain(output, &board.tiles);
-    output.push('\n');
 
+    // Board properties cluster (may be empty)
+    let mut props = String::new();
+    write_board_properties(&mut props, board);
+
+    // Stats cluster (may be empty)
+    let mut stats = String::new();
+    for (i, stat) in board.stats.iter().enumerate() {
+        if i > 0 {
+            stats.push('\n'); // blank between stats
+        }
+        let element = get_element_at(board, stat.x, stat.y);
+        write_stat(&mut stats, i, stat, element);
+    }
+
+    // Join non-empty clusters with single blank lines
+    for cluster in [props, stats] {
+        if !cluster.is_empty() {
+            output.push('\n');
+            output.push_str(&cluster);
+        }
+    }
+}
+
+fn write_board_properties(output: &mut String, board: &Board) {
     kv!(output, "shots", board.max_shots, 255);
     kv_bool!(output, "dark", board.is_dark);
     kv!(output, "exit_n", board.exit_north, 0);
@@ -130,12 +155,6 @@ fn write_board(output: &mut String, index: usize, board: &Board) {
     kv!(output, "enter_x", board.enter_x, 1);
     kv!(output, "enter_y", board.enter_y, 1);
     kv_str!(output, "message", &board.message, "");
-
-    for (i, stat) in board.stats.iter().enumerate() {
-        let element = get_element_at(board, stat.x, stat.y);
-        output.push('\n');
-        write_stat(output, i, stat, element);
-    }
 }
 
 fn write_terrain(output: &mut String, tiles: &[Tile]) {
