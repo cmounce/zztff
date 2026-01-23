@@ -118,7 +118,7 @@ fn write_board(output: &mut String, index: usize, board: &Board) {
     write_terrain(output, &board.tiles);
     output.push('\n');
 
-    kv!(output, "shots", board.max_shots, 0);
+    kv!(output, "shots", board.max_shots, 255);
     kv_bool!(output, "dark", board.is_dark);
     kv!(output, "exit_n", board.exit_north, 0);
     kv!(output, "exit_s", board.exit_south, 0);
@@ -126,8 +126,8 @@ fn write_board(output: &mut String, index: usize, board: &Board) {
     kv!(output, "exit_w", board.exit_west, 0);
     kv_bool!(output, "reenter", board.restart_on_zap);
     kv!(output, "time_limit", board.time_limit, 0);
-    kv!(output, "enter_x", board.enter_x, 0);
-    kv!(output, "enter_y", board.enter_y, 0);
+    kv!(output, "enter_x", board.enter_x, 1);
+    kv!(output, "enter_y", board.enter_y, 1);
     kv_str!(output, "message", &board.message, "");
 
     for (i, stat) in board.stats.iter().enumerate() {
@@ -182,7 +182,7 @@ fn write_stat(output: &mut String, index: usize, stat: &Stat, element: Option<u8
     kv!(output, "x_step", stat.x_step, 0);
     kv!(output, "y_step", stat.y_step, 0);
 
-    if stat.under.element != 0 || stat.under.color != 0 {
+    if stat.under.element != Element::Empty as u8 || stat.under.color != 0x0f {
         writeln!(
             output,
             "under = ({}, {})",
@@ -658,8 +658,8 @@ fn parse_stat_section<'a>(input: &'a str, tiles: &[Tile]) -> Result<(&'a str, St
         follower: -1,
         leader: -1,
         under: Tile {
-            element: 0,
-            color: 0,
+            element: Element::Empty as u8,
+            color: 0x0f,
         },
         instruction_pointer: 0,
         program: Program::Own(String::new()),
@@ -776,7 +776,7 @@ fn parse_board_section(input: &str) -> Result<(&str, Board), ParseError> {
     let mut board = Board {
         name: title,
         tiles,
-        max_shots: 0,
+        max_shots: 255,
         is_dark: false,
         exit_north: 0,
         exit_south: 0,
@@ -784,8 +784,8 @@ fn parse_board_section(input: &str) -> Result<(&str, Board), ParseError> {
         exit_east: 0,
         restart_on_zap: false,
         message: String::new(),
-        enter_x: 0,
-        enter_y: 0,
+        enter_x: 1,
+        enter_y: 1,
         time_limit: 0,
         stats: Vec::new(),
     };
