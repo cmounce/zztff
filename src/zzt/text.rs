@@ -45,6 +45,27 @@ macro_rules! kv_str {
     };
 }
 
+/// Get board title comment string for a board index.
+fn board_title_comment(boards: &[Board], index: u8) -> String {
+    boards
+        .get(index as usize)
+        .map(|b| format!(" # {}", b.name))
+        .unwrap_or_default()
+}
+
+/// Get bind target comment string (first line if it starts with @).
+fn bind_target_comment(stats: &[Stat], index: u16) -> String {
+    stats
+        .get(index as usize)
+        .and_then(|s| match &s.program {
+            Program::Own(code) if code.starts_with('@') => {
+                code.lines().next().map(|line| format!(" # {}", line))
+            }
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
 /// Convert a World to its text representation.
 pub fn world_to_text(world: &World) -> String {
     let mut output = String::new();
@@ -52,7 +73,7 @@ pub fn world_to_text(world: &World) -> String {
 
     for (i, board) in world.boards.iter().enumerate() {
         output.push_str("\n\n");
-        write_board(&mut output, Some(i), board);
+        write_board(&mut output, Some(i), board, Some(&world.boards));
     }
 
     output
@@ -61,7 +82,7 @@ pub fn world_to_text(world: &World) -> String {
 /// Convert a standalone Board to its text representation.
 pub fn board_to_text(board: &Board) -> String {
     let mut output = String::new();
-    write_board(&mut output, None, board);
+    write_board(&mut output, None, board, None);
     output
 }
 
@@ -80,7 +101,10 @@ fn write_world_header(output: &mut String, world: &World) {
         writeln!(output, "keys = [{}]", key_arr.join(", ")).unwrap();
     }
 
-    kv!(output, "starting_board", world.starting_board, 0);
+    if world.starting_board != 0 {
+        let comment = board_title_comment(&world.boards, world.starting_board as u8);
+        writeln!(output, "starting_board = {}{}", world.starting_board, comment).unwrap();
+    }
     kv_bool!(output, "saved_game", world.locked);
 
     // Print flags until we've printed all the non-empty ones.
@@ -113,7 +137,7 @@ fn keys_to_array(keys: &[bool; 7]) -> Vec<&'static str> {
         .collect()
 }
 
-fn write_board(output: &mut String, index: Option<usize>, board: &Board) {
+fn write_board(output: &mut String, index: Option<usize>, board: &Board, boards: Option<&[Board]>) {
     // Header cluster (always present)
     match index {
         Some(i) => writeln!(output, "[board {}]", i).unwrap(),
@@ -127,20 +151,20 @@ fn write_board(output: &mut String, index: Option<usize>, board: &Board) {
 
     // Board properties cluster (may be empty)
     let mut props = String::new();
-    write_board_properties(&mut props, board);
+    write_board_properties(&mut props, board, boards);
 
     // Stats cluster (may be empty)
-    let mut stats = String::new();
+    let mut stats_output = String::new();
     for (i, stat) in board.stats.iter().enumerate() {
         if i > 0 {
-            stats.push('\n'); // blank between stats
+            stats_output.push('\n'); // blank between stats
         }
         let element = get_element_at(board, stat.x, stat.y);
-        write_stat(&mut stats, i, stat, element);
+        write_stat(&mut stats_output, i, stat, element, &board.stats, boards);
     }
 
     // Join non-empty clusters with single blank lines
-    for cluster in [props, stats] {
+    for cluster in [props, stats_output] {
         if !cluster.is_empty() {
             output.push('\n');
             output.push_str(&cluster);
@@ -148,13 +172,25 @@ fn write_board(output: &mut String, index: Option<usize>, board: &Board) {
     }
 }
 
-fn write_board_properties(output: &mut String, board: &Board) {
+fn write_board_properties(output: &mut String, board: &Board, boards: Option<&[Board]>) {
     kv!(output, "shots", board.max_shots, 255);
     kv_bool!(output, "dark", board.is_dark);
-    kv!(output, "exit_n", board.exit_north, 0);
-    kv!(output, "exit_s", board.exit_south, 0);
-    kv!(output, "exit_e", board.exit_east, 0);
-    kv!(output, "exit_w", board.exit_west, 0);
+
+    // Helper to write exit with optional board title comment
+    fn write_exit(output: &mut String, name: &str, index: u8, boards: Option<&[Board]>) {
+        if index != 0 {
+            let comment = boards
+                .map(|b| board_title_comment(b, index))
+                .unwrap_or_default();
+            writeln!(output, "{} = {}{}", name, index, comment).unwrap();
+        }
+    }
+
+    write_exit(output, "exit_n", board.exit_north, boards);
+    write_exit(output, "exit_s", board.exit_south, boards);
+    write_exit(output, "exit_e", board.exit_east, boards);
+    write_exit(output, "exit_w", board.exit_west, boards);
+
     kv_bool!(output, "reenter", board.restart_on_zap);
     kv!(output, "time_limit", board.time_limit, 0);
     if board.enter_x != 1 || board.enter_y != 1 {
@@ -193,7 +229,14 @@ fn get_element_at(board: &Board, x: u8, y: u8) -> Option<u8> {
     board.tiles.get(index).map(|t| t.element)
 }
 
-fn write_stat(output: &mut String, index: usize, stat: &Stat, element: Option<u8>) {
+fn write_stat(
+    output: &mut String,
+    index: usize,
+    stat: &Stat,
+    element: Option<u8>,
+    stats: &[Stat],
+    boards: Option<&[Board]>,
+) {
     // Stat header with element type comment
     let element_comment = match element {
         Some(id) => element_name(id),
@@ -229,7 +272,17 @@ fn write_stat(output: &mut String, index: usize, stat: &Stat, element: Option<u8
     let elem = element.and_then(Element::from_u8);
     write_param(output, stat.p1, "p1", elem.and_then(|e| e.p1_alias()));
     write_param(output, stat.p2, "p2", elem.and_then(|e| e.p2_alias()));
-    write_param(output, stat.p3, "p3", elem.and_then(|e| e.p3_alias()));
+
+    // Special case for Passage destination (p3) - always output with board title comment
+    // (p3=0 means "go to title screen" for passages, which is a valid destination)
+    if element == Some(Element::Passage as u8) {
+        let comment = boards
+            .map(|b| board_title_comment(b, stat.p3))
+            .unwrap_or_default();
+        writeln!(output, "destination = {}{}", stat.p3, comment).unwrap();
+    } else {
+        write_param(output, stat.p3, "p3", elem.and_then(|e| e.p3_alias()));
+    }
 
     // Program/code
     match &stat.program {
@@ -242,7 +295,8 @@ fn write_stat(output: &mut String, index: usize, stat: &Stat, element: Option<u8
             output.push_str("\"\"\"\n");
         }
         Program::Bound(idx) => {
-            writeln!(output, "bind = {}", idx).unwrap();
+            let comment = bind_target_comment(stats, *idx);
+            writeln!(output, "bind = {}{}", idx, comment).unwrap();
         }
         _ => {}
     }
