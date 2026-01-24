@@ -198,12 +198,12 @@ fn write_stat(output: &mut String, index: usize, stat: &Stat, element: Option<u8
     };
     writeln!(output, "[stat {}] # {}", index, element_comment).unwrap();
 
-    writeln!(output, "x = {}", stat.x).unwrap();
-    writeln!(output, "y = {}", stat.y).unwrap();
+    writeln!(output, "at = ({}, {})", stat.x, stat.y).unwrap();
 
     kv!(output, "cycle", stat.cycle, 0);
-    kv!(output, "x_step", stat.x_step, 0);
-    kv!(output, "y_step", stat.y_step, 0);
+    if stat.x_step != 0 || stat.y_step != 0 {
+        writeln!(output, "step = ({}, {})", stat.x_step, stat.y_step).unwrap();
+    }
 
     if stat.under.element != Element::Empty as u8 || stat.under.color != 0x0f {
         let elem_name = match Element::from_u8(stat.under.element) {
@@ -265,6 +265,7 @@ enum Value {
     String(String),
     StringArray(Vec<String>),
     Tuple2(u8, u8),
+    SignedTuple2(i16, i16),
     TripleQuotedString(String),
 }
 
@@ -418,6 +419,26 @@ fn tuple2(input: &str) -> IResult<&str, (u8, u8)> {
     Ok((input, (element_id, color)))
 }
 
+/// Parse a tuple of signed integers like (0, -1).
+fn signed_tuple2(input: &str) -> IResult<&str, (i16, i16)> {
+    let (input, _) = char('(').parse(input)?;
+    let (input, _) = multispace0.parse(input)?;
+    let (input, a) = map_res(recognize(pair(opt(char('-')), digit1)), |s: &str| {
+        s.parse::<i16>()
+    })
+    .parse(input)?;
+    let (input, _) = multispace0.parse(input)?;
+    let (input, _) = char(',').parse(input)?;
+    let (input, _) = multispace0.parse(input)?;
+    let (input, b) = map_res(recognize(pair(opt(char('-')), digit1)), |s: &str| {
+        s.parse::<i16>()
+    })
+    .parse(input)?;
+    let (input, _) = multispace0.parse(input)?;
+    let (input, _) = char(')').parse(input)?;
+    Ok((input, (a, b)))
+}
+
 /// Parse a string array like ["foo", "bar", ""].
 fn string_array(input: &str) -> IResult<&str, Vec<String>> {
     let (input, _) = char('[').parse(input)?;
@@ -456,6 +477,7 @@ fn parse_value(input: &str) -> IResult<&str, Value> {
         map(triple_quoted_string, Value::TripleQuotedString),
         map(string_array, Value::StringArray),
         map(quoted_string, Value::String),
+        map(signed_tuple2, |(a, b)| Value::SignedTuple2(a, b)),
         map(tuple2, |(a, b)| Value::Tuple2(a, b)),
         map(boolean, Value::Bool),
         map(integer, Value::Int),
@@ -689,14 +711,10 @@ fn parse_stat_section<'a>(
     let mut y: u8 = 0;
     for (key, value) in &pairs {
         match *key {
-            "x" => {
-                if let Value::Int(n) = value {
-                    x = *n as u8;
-                }
-            }
-            "y" => {
-                if let Value::Int(n) = value {
-                    y = *n as u8;
+            "at" => {
+                if let Value::SignedTuple2(nx, ny) = value {
+                    x = *nx as u8;
+                    y = *ny as u8;
                 }
             }
             _ => {}
@@ -728,20 +746,16 @@ fn parse_stat_section<'a>(
     // Second pass: apply all properties
     for (key, value) in pairs {
         match key {
-            "x" | "y" => {} // Already handled
+            "at" => {} // Already handled
             "cycle" => {
                 if let Value::Int(n) = value {
                     stat.cycle = n as i16;
                 }
             }
-            "x_step" => {
-                if let Value::Int(n) = value {
-                    stat.x_step = n as i16;
-                }
-            }
-            "y_step" => {
-                if let Value::Int(n) = value {
-                    stat.y_step = n as i16;
+            "step" => {
+                if let Value::SignedTuple2(xs, ys) = value {
+                    stat.x_step = xs;
+                    stat.y_step = ys;
                 }
             }
             "under" => {
