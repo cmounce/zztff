@@ -157,7 +157,7 @@ fn write_board(output: &mut String, index: Option<usize>, board: &Board, boards:
 
     // Board properties cluster (may be empty)
     let mut props = String::new();
-    write_board_properties(&mut props, board, boards);
+    write_board_properties(&mut props, index, board, boards);
 
     // Stats cluster (may be empty)
     let mut stats_output = String::new();
@@ -178,29 +178,61 @@ fn write_board(output: &mut String, index: Option<usize>, board: &Board, boards:
     }
 }
 
-fn write_board_properties(output: &mut String, board: &Board, boards: Option<&[Board]>) {
+fn write_board_properties(
+    output: &mut String,
+    current_idx: Option<usize>,
+    board: &Board,
+    boards: Option<&[Board]>,
+) {
     kv!(output, "shots", board.max_shots, 255);
     kv_bool!(output, "dark", board.is_dark);
 
-    // Helper to write exit with optional board title comment
+    // Helper to write exit with optional board title comment and reciprocal marker
     fn write_exit(
         output: &mut String,
-        name: &str,
+        direction: char,
         index: Option<NonZero<u8>>,
+        current_idx: Option<usize>,
         boards: Option<&[Board]>,
     ) {
         if let Some(n) = index {
-            let comment = boards
-                .map(|b| board_title_comment(b, n.get()))
-                .unwrap_or_default();
-            writeln!(output, "{} = {}{}", name, n, comment).unwrap();
+            let target_idx = n.get() as usize;
+
+            // Check if connection is reciprocal
+            let is_reciprocal = boards.map_or(false, |b| {
+                current_idx.map_or(false, |cur| {
+                    b.get(target_idx).map_or(false, |target_board| {
+                        let opposite_exit = match direction {
+                            'n' => target_board.exit_south,
+                            's' => target_board.exit_north,
+                            'e' => target_board.exit_west,
+                            'w' => target_board.exit_east,
+                            _ => None,
+                        };
+                        opposite_exit.map_or(false, |e| e.get() as usize == cur)
+                    })
+                })
+            });
+
+            let reciprocal_marker = if is_reciprocal { "[*] " } else { "" };
+            let title = boards
+                .and_then(|b| b.get(target_idx))
+                .map(|b| b.name.as_str())
+                .unwrap_or("");
+
+            writeln!(
+                output,
+                "exit_{} = {} # {}{}",
+                direction, n, reciprocal_marker, title
+            )
+            .unwrap();
         }
     }
 
-    write_exit(output, "exit_n", board.exit_north, boards);
-    write_exit(output, "exit_s", board.exit_south, boards);
-    write_exit(output, "exit_e", board.exit_east, boards);
-    write_exit(output, "exit_w", board.exit_west, boards);
+    write_exit(output, 'n', board.exit_north, current_idx, boards);
+    write_exit(output, 's', board.exit_south, current_idx, boards);
+    write_exit(output, 'e', board.exit_east, current_idx, boards);
+    write_exit(output, 'w', board.exit_west, current_idx, boards);
 
     kv_bool!(output, "reenter", board.restart_on_zap);
     kv!(output, "time_limit", board.time_limit, 0);
