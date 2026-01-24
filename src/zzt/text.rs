@@ -15,6 +15,9 @@ use super::elements::{Element, element_id_from_name, element_name, resolve_alias
 use super::error::ParseError;
 use super::parse::{Board, Program, Stat, Tile, World};
 
+/// Key color names in ZZT order
+const KEY_NAMES: [&str; 7] = ["blue", "green", "cyan", "red", "purple", "yellow", "white"];
+
 /// Write key = value if value != default.
 macro_rules! kv {
     ($out:expr, $key:expr, $val:expr, $default:expr) => {
@@ -72,9 +75,9 @@ fn write_world_header(output: &mut String, world: &World) {
     kv!(output, "torches", world.torches, 0);
     kv!(output, "score", world.score, 0);
 
-    let key_str = keys_to_string(&world.keys);
-    if !key_str.is_empty() {
-        writeln!(output, "keys = {:?}", key_str).unwrap();
+    let key_arr = keys_to_array(&world.keys);
+    if !key_arr.is_empty() {
+        writeln!(output, "keys = [{}]", key_arr.join(", ")).unwrap();
     }
 
     kv!(output, "starting_board", world.starting_board, 0);
@@ -102,12 +105,11 @@ fn write_world_header(output: &mut String, world: &World) {
     kv!(output, "time_ticks", world.time_ticks, 0);
 }
 
-fn keys_to_string(keys: &[bool; 7]) -> String {
-    let key_chars = ['b', 'g', 'c', 'r', 'p', 'y', 'w'];
+fn keys_to_array(keys: &[bool; 7]) -> Vec<&'static str> {
     keys.iter()
-        .zip(key_chars.iter())
+        .zip(KEY_NAMES.iter())
         .filter(|(has_key, _)| **has_key)
-        .map(|(_, c)| *c)
+        .map(|(_, name)| *name)
         .collect()
 }
 
@@ -264,6 +266,7 @@ enum Value {
     Bool(bool),
     String(String),
     StringArray(Vec<String>),
+    SymbolArray(Vec<String>),
     Tuple2(u8, u8),
     SignedTuple2(i16, i16),
     TripleQuotedString(String),
@@ -471,10 +474,43 @@ fn string_array(input: &str) -> IResult<&str, Vec<String>> {
     }
 }
 
+/// Parse an array of unquoted symbols like [blue, red, yellow].
+fn symbol_array(input: &str) -> IResult<&str, Vec<String>> {
+    let (input, _) = char('[').parse(input)?;
+    let (input, _) = multispace0.parse(input)?;
+
+    let mut items = Vec::new();
+    let mut input = input;
+
+    // Check for empty array
+    if let Ok((next, _)) = char::<_, nom::error::Error<&str>>(']').parse(input) {
+        return Ok((next, items));
+    }
+
+    // Parse first item
+    let (next, first) = identifier(input)?;
+    items.push(first.to_string());
+    input = next;
+
+    // Parse remaining items
+    loop {
+        let (next, _) = multispace0.parse(input)?;
+        if let Ok((next, _)) = char::<_, nom::error::Error<&str>>(']').parse(next) {
+            return Ok((next, items));
+        }
+        let (next, _) = char(',').parse(next)?;
+        let (next, _) = multispace0.parse(next)?;
+        let (next, item) = identifier(next)?;
+        items.push(item.to_string());
+        input = next;
+    }
+}
+
 /// Parse a value (any type).
 fn parse_value(input: &str) -> IResult<&str, Value> {
     alt((
         map(triple_quoted_string, Value::TripleQuotedString),
+        map(symbol_array, Value::SymbolArray),
         map(string_array, Value::StringArray),
         map(quoted_string, Value::String),
         map(signed_tuple2, |(a, b)| Value::SignedTuple2(a, b)),
@@ -550,12 +586,13 @@ fn parse_terrain(input: &str) -> Result<(&str, Vec<Tile>), ParseError> {
     Ok((input, tiles))
 }
 
-/// Parse keys string like "bgcr" into bool array.
-fn parse_keys(s: &str) -> [bool; 7] {
-    let key_chars = ['b', 'g', 'c', 'r', 'p', 'y', 'w'];
+/// Parse keys array like ["blue", "cyan", "red"] into bool array.
+fn parse_keys_array(symbols: &[String]) -> [bool; 7] {
     let mut keys = [false; 7];
-    for (i, c) in key_chars.iter().enumerate() {
-        keys[i] = s.contains(*c);
+    for symbol in symbols {
+        if let Some(idx) = KEY_NAMES.iter().position(|&n| n == symbol) {
+            keys[idx] = true;
+        }
     }
     keys
 }
@@ -627,8 +664,8 @@ fn parse_world_section(input: &str) -> Result<(&str, World), ParseError> {
                 }
             }
             "keys" => {
-                if let Value::String(s) = value {
-                    world.keys = parse_keys(&s);
+                if let Value::SymbolArray(arr) = value {
+                    world.keys = parse_keys_array(&arr);
                 }
             }
             "starting_board" => {
