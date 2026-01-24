@@ -157,8 +157,9 @@ fn write_board_properties(output: &mut String, board: &Board) {
     kv!(output, "exit_w", board.exit_west, 0);
     kv_bool!(output, "reenter", board.restart_on_zap);
     kv!(output, "time_limit", board.time_limit, 0);
-    kv!(output, "enter_x", board.enter_x, 1);
-    kv!(output, "enter_y", board.enter_y, 1);
+    if board.enter_x != 1 || board.enter_y != 1 {
+        writeln!(output, "enter = ({}, {})", board.enter_x, board.enter_y).unwrap();
+    }
     kv_str!(output, "message", &board.message, "");
 }
 
@@ -954,14 +955,10 @@ fn parse_board_section(input: &str) -> Result<(&str, Board, Option<usize>), Pars
                     board.time_limit = n as i16;
                 }
             }
-            "enter_x" => {
-                if let Value::Int(n) = value {
-                    board.enter_x = n as u8;
-                }
-            }
-            "enter_y" => {
-                if let Value::Int(n) = value {
-                    board.enter_y = n as u8;
+            "enter" => {
+                if let Value::SignedTuple2(x, y) = value {
+                    board.enter_x = x as u8;
+                    board.enter_y = y as u8;
                 }
             }
             "message" => {
