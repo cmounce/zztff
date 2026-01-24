@@ -1,3 +1,5 @@
+use std::num::NonZero;
+
 use nom::{
     IResult, Parser,
     bytes::complete::{tag, take},
@@ -58,10 +60,10 @@ pub struct Board {
     pub tiles: Vec<Tile>,
     pub max_shots: u8,
     pub is_dark: bool,
-    pub exit_north: u8,
-    pub exit_south: u8,
-    pub exit_west: u8,
-    pub exit_east: u8,
+    pub exit_north: Option<NonZero<u8>>,
+    pub exit_south: Option<NonZero<u8>>,
+    pub exit_west: Option<NonZero<u8>>,
+    pub exit_east: Option<NonZero<u8>>,
     pub restart_on_zap: bool,
     pub message: String,
     pub enter_x: u8,
@@ -251,8 +253,12 @@ impl Board {
 
         // Read board info
         let (input, (max_shots, is_dark)) = (le_u8, bool_u8).parse(input)?;
-        let (input, (exit_north, exit_south, exit_west, exit_east)) =
+        let (input, (exit_n, exit_s, exit_w, exit_e)) =
             (le_u8, le_u8, le_u8, le_u8).parse(input)?;
+        let exit_north = NonZero::new(exit_n);
+        let exit_south = NonZero::new(exit_s);
+        let exit_west = NonZero::new(exit_w);
+        let exit_east = NonZero::new(exit_e);
         let (input, (restart_on_zap, message)) = (bool_u8, pstring(58)).parse(input)?;
         let (input, (enter_x, enter_y, time_limit)) = (le_u8, le_u8, le_i16).parse(input)?;
         let (input, _) = take(16usize)(input)?;
@@ -313,10 +319,10 @@ impl Board {
         // Board info
         result.push(self.max_shots);
         result.push_bool(self.is_dark);
-        result.push(self.exit_north);
-        result.push(self.exit_south);
-        result.push(self.exit_west);
-        result.push(self.exit_east);
+        result.push(self.exit_north.map_or(0, |n| n.get()));
+        result.push(self.exit_south.map_or(0, |n| n.get()));
+        result.push(self.exit_west.map_or(0, |n| n.get()));
+        result.push(self.exit_east.map_or(0, |n| n.get()));
         result.push_bool(self.restart_on_zap);
         result.push_string(58, &self.message)?;
         result.push(self.enter_x);

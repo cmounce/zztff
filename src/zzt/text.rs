@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::num::NonZero;
 
 use nom::{
     IResult, Parser,
@@ -103,7 +104,12 @@ fn write_world_header(output: &mut String, world: &World) {
 
     if world.starting_board != 0 {
         let comment = board_title_comment(&world.boards, world.starting_board as u8);
-        writeln!(output, "starting_board = {}{}", world.starting_board, comment).unwrap();
+        writeln!(
+            output,
+            "starting_board = {}{}",
+            world.starting_board, comment
+        )
+        .unwrap();
     }
     kv_bool!(output, "saved_game", world.locked);
 
@@ -177,12 +183,17 @@ fn write_board_properties(output: &mut String, board: &Board, boards: Option<&[B
     kv_bool!(output, "dark", board.is_dark);
 
     // Helper to write exit with optional board title comment
-    fn write_exit(output: &mut String, name: &str, index: u8, boards: Option<&[Board]>) {
-        if index != 0 {
+    fn write_exit(
+        output: &mut String,
+        name: &str,
+        index: Option<NonZero<u8>>,
+        boards: Option<&[Board]>,
+    ) {
+        if let Some(n) = index {
             let comment = boards
-                .map(|b| board_title_comment(b, index))
+                .map(|b| board_title_comment(b, n.get()))
                 .unwrap_or_default();
-            writeln!(output, "{} = {}{}", name, index, comment).unwrap();
+            writeln!(output, "{} = {}{}", name, n, comment).unwrap();
         }
     }
 
@@ -946,10 +957,10 @@ fn parse_board_section(input: &str) -> Result<(&str, Board, Option<usize>), Pars
         tiles,
         max_shots: 255,
         is_dark: false,
-        exit_north: 0,
-        exit_south: 0,
-        exit_west: 0,
-        exit_east: 0,
+        exit_north: None,
+        exit_south: None,
+        exit_west: None,
+        exit_east: None,
         restart_on_zap: false,
         message: String::new(),
         enter_x: 1,
@@ -981,22 +992,22 @@ fn parse_board_section(input: &str) -> Result<(&str, Board, Option<usize>), Pars
             }
             "exit_n" => {
                 if let Value::Int(n) = value {
-                    board.exit_north = n as u8;
+                    board.exit_north = NonZero::new(n as u8);
                 }
             }
             "exit_s" => {
                 if let Value::Int(n) = value {
-                    board.exit_south = n as u8;
+                    board.exit_south = NonZero::new(n as u8);
                 }
             }
             "exit_e" => {
                 if let Value::Int(n) = value {
-                    board.exit_east = n as u8;
+                    board.exit_east = NonZero::new(n as u8);
                 }
             }
             "exit_w" => {
                 if let Value::Int(n) = value {
-                    board.exit_west = n as u8;
+                    board.exit_west = NonZero::new(n as u8);
                 }
             }
             "reenter" => {
@@ -1063,12 +1074,22 @@ fn remap_board_ref(value: u8, map: &HashMap<usize, usize>) -> u8 {
         .unwrap_or(value)
 }
 
+/// Remap an exit reference using the ephemeral ID -> index mapping.
+/// Returns the value unchanged if no mapping exists.
+fn remap_exit_ref(value: Option<NonZero<u8>>, map: &HashMap<usize, usize>) -> Option<NonZero<u8>> {
+    value.and_then(|n| {
+        map.get(&(n.get() as usize))
+            .and_then(|&idx| NonZero::new(idx as u8))
+            .or(Some(n))
+    })
+}
+
 /// Remap board references in a board's exits and passage stats.
 fn remap_board_refs(board: &mut Board, map: &HashMap<usize, usize>) {
-    board.exit_north = remap_board_ref(board.exit_north, map);
-    board.exit_south = remap_board_ref(board.exit_south, map);
-    board.exit_east = remap_board_ref(board.exit_east, map);
-    board.exit_west = remap_board_ref(board.exit_west, map);
+    board.exit_north = remap_exit_ref(board.exit_north, map);
+    board.exit_south = remap_exit_ref(board.exit_south, map);
+    board.exit_east = remap_exit_ref(board.exit_east, map);
+    board.exit_west = remap_exit_ref(board.exit_west, map);
 
     // Remap passage destinations (p3 for Passage elements)
     for stat in &mut board.stats {
