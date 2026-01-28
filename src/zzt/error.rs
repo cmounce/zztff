@@ -21,23 +21,17 @@ pub enum ParseError {
     #[error("board data too large")]
     BoardTooLarge,
 
-    #[error("parse error: {0}")]
-    ParseError(String),
-
-    #[error("text parse error: {message}")]
-    TextParseError { message: String },
-
-    #[error("invalid hex in terrain: {0}")]
-    InvalidHex(String),
+    #[error("nom error: {0}")]
+    NomError(String),
 }
 
 impl<I> NomParseError<I> for ParseError {
     fn from_error_kind(_input: I, kind: ErrorKind) -> Self {
-        Self::ParseError(kind.description().to_string())
+        Self::NomError(kind.description().to_string())
     }
 
     fn append(_input: I, kind: ErrorKind, other: Self) -> Self {
-        Self::ParseError(format!("{}: {:?}", other, kind))
+        Self::NomError(format!("{}: {:?}", other, kind))
     }
 }
 
@@ -45,7 +39,7 @@ impl From<nom::Err<ParseError>> for ParseError {
     fn from(value: nom::Err<ParseError>) -> Self {
         match value {
             nom::Err::Error(e) | nom::Err::Failure(e) => e,
-            nom::Err::Incomplete(needed) => Self::ParseError(format!("incomplete: {:?}", needed)),
+            nom::Err::Incomplete(needed) => Self::NomError(format!("incomplete: {:?}", needed)),
         }
     }
 }
