@@ -26,7 +26,7 @@ pub enum Program {
     /// The stat owns its own code.
     Own(String),
     /// The stat is bound to another stat (index into the stats list).
-    Bound(u16),
+    Bound(NonZero<u16>),
 }
 
 impl Default for Program {
@@ -359,7 +359,10 @@ impl Stat {
 
         let (input, program) = if length < 0 {
             // Negative length means bound to another stat
-            (input, Program::Bound((-length) as u16))
+            (
+                input,
+                Program::Bound(NonZero::new((-length) as u16).unwrap()),
+            )
         } else {
             // Positive length means own code
             let (input, code_bytes) = take(length as usize)(input)?;
@@ -408,7 +411,7 @@ impl Stat {
 
         match &self.program {
             Program::Bound(index) => {
-                result.push_i16(-(*index as i16));
+                result.push_i16(-(index.get() as i16));
                 result.push_padding(8);
             }
             Program::Own(code) => {
