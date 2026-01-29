@@ -54,7 +54,7 @@ pub struct Stat {
 }
 
 /// A ZZT board.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Board {
     pub name: String,
     pub tiles: Vec<Tile>,
@@ -73,7 +73,7 @@ pub struct Board {
 }
 
 /// A ZZT world file.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct World {
     pub ammo: i16,
     pub gems: i16,
