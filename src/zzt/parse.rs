@@ -11,7 +11,7 @@ use super::encoding::{decode_multiline, decode_oneline, encode_multiline, encode
 use super::error::ParseError;
 
 /// A single tile on a ZZT board.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Tile {
     pub element: u8,
     pub color: u8,
