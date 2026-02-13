@@ -36,7 +36,7 @@ impl Default for Program {
 }
 
 /// A status element on a ZZT board.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Stat {
     pub x: u8,
     pub y: u8,
