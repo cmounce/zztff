@@ -7,6 +7,7 @@ use nom::{
     number::complete::{le_i16, le_u8, le_u16},
 };
 
+use super::elements::Element;
 use super::encoding::{decode_multiline, decode_oneline, encode_multiline, encode_oneline};
 use super::error::ParseError;
 
@@ -36,7 +37,7 @@ impl Default for Program {
 }
 
 /// A status element on a ZZT board.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Stat {
     pub x: u8,
     pub y: u8,
@@ -53,8 +54,31 @@ pub struct Stat {
     pub program: Program,
 }
 
+impl Default for Stat {
+    fn default() -> Self {
+        Stat {
+            x: 0,
+            y: 0,
+            x_step: 0,
+            y_step: 0,
+            cycle: 0,
+            p1: 0,
+            p2: 0,
+            p3: 0,
+            follower: -1,
+            leader: -1,
+            under: Tile {
+                element: Element::Empty as u8,
+                color: 0x0f,
+            },
+            instruction_pointer: 0,
+            program: Program::default(),
+        }
+    }
+}
+
 /// A ZZT board.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Board {
     pub name: String,
     pub tiles: Vec<Tile>,
@@ -72,8 +96,29 @@ pub struct Board {
     pub stats: Vec<Stat>,
 }
 
+impl Default for Board {
+    fn default() -> Self {
+        Board {
+            name: String::new(),
+            tiles: Vec::new(),
+            max_shots: 255,
+            is_dark: false,
+            exit_north: None,
+            exit_south: None,
+            exit_west: None,
+            exit_east: None,
+            restart_on_zap: false,
+            message: String::new(),
+            enter_x: 1,
+            enter_y: 1,
+            time_limit: 0,
+            stats: Vec::new(),
+        }
+    }
+}
+
 /// A ZZT world file.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct World {
     pub ammo: i16,
     pub gems: i16,
@@ -90,6 +135,28 @@ pub struct World {
     pub time_ticks: i16,
     pub locked: bool,
     pub boards: Vec<Board>,
+}
+
+impl Default for World {
+    fn default() -> Self {
+        World {
+            ammo: 0,
+            gems: 0,
+            keys: [false; 7],
+            health: 100,
+            starting_board: 0,
+            torches: 0,
+            torch_cycles: 0,
+            energizer_cycles: 0,
+            score: 0,
+            name: String::new(),
+            flags: Default::default(),
+            time: 0,
+            time_ticks: 0,
+            locked: false,
+            boards: Vec::new(),
+        }
+    }
 }
 
 // Parsing helpers
