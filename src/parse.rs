@@ -492,3 +492,24 @@ impl Stat {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use insta::assert_debug_snapshot;
+
+    const BYTES: &[u8] = include_bytes!("../tests/fixtures/all.zzt");
+
+    #[test]
+    fn roundtrip() {
+        let world = World::from_bytes(BYTES).unwrap();
+        let encoded = world.to_bytes().unwrap();
+        assert_eq!(BYTES, &encoded[..]);
+    }
+
+    #[test]
+    fn decode_snapshot() {
+        let world = World::from_bytes(BYTES).unwrap();
+        assert_debug_snapshot!(world);
+    }
+}
