@@ -1,0 +1,13 @@
+[package]
+name = "zztff"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+codepage-437 = "0.1"
+nom = "8.0"
+thiserror = "2.0"
+
+[dev-dependencies]
+insta = "1.46"
