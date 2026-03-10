@@ -9,7 +9,7 @@ use nom::{
 
 use super::elements::Element;
 use super::encoding::{decode_multiline, decode_oneline, encode_multiline, encode_oneline};
-use super::error::ParseError;
+use super::error::{DecodeError, EncodeError};
 
 /// A single tile on a ZZT board.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -161,13 +161,13 @@ impl Default for World {
 
 // Parsing helpers
 
-fn bool_u8(input: &[u8]) -> IResult<&[u8], bool, ParseError> {
+fn bool_u8(input: &[u8]) -> IResult<&[u8], bool, DecodeError> {
     let (input, byte) = le_u8(input)?;
     Ok((input, byte != 0))
 }
 
-fn pstring(cap: u8) -> impl Fn(&[u8]) -> IResult<&[u8], String, ParseError> {
-    move |input: &[u8]| -> IResult<&[u8], String, ParseError> {
+fn pstring(cap: u8) -> impl Fn(&[u8]) -> IResult<&[u8], String, DecodeError> {
+    move |input: &[u8]| -> IResult<&[u8], String, DecodeError> {
         let (input, len) = le_u8(input)?;
         let actual_len = len.min(cap);
         let (input, data) = take(actual_len)(input)?;
@@ -176,7 +176,7 @@ fn pstring(cap: u8) -> impl Fn(&[u8]) -> IResult<&[u8], String, ParseError> {
     }
 }
 
-fn board_slice(bytes: &[u8]) -> IResult<&[u8], &[u8], ParseError> {
+fn board_slice(bytes: &[u8]) -> IResult<&[u8], &[u8], DecodeError> {
     let (_, size) = le_u16.parse(bytes)?;
     take(size as usize + 2).parse(bytes)
 }
@@ -186,7 +186,7 @@ fn board_slice(bytes: &[u8]) -> IResult<&[u8], &[u8], ParseError> {
 trait SerializationHelpers {
     fn push_bool(&mut self, value: bool);
     fn push_i16(&mut self, value: i16);
-    fn push_string(&mut self, cap: u8, value: &str) -> Result<(), ParseError>;
+    fn push_string(&mut self, cap: u8, value: &str) -> Result<(), EncodeError>;
     fn push_padding(&mut self, size: usize);
 }
 
@@ -199,10 +199,10 @@ impl SerializationHelpers for Vec<u8> {
         self.extend(value.to_le_bytes());
     }
 
-    fn push_string(&mut self, cap: u8, value: &str) -> Result<(), ParseError> {
+    fn push_string(&mut self, cap: u8, value: &str) -> Result<(), EncodeError> {
         let bytes = encode_oneline(value)?;
         if bytes.len() > cap as usize {
-            return Err(ParseError::StringTooLong { max: cap });
+            return Err(EncodeError::StringTooLong { max: cap });
         }
         self.push(bytes.len() as u8);
         self.extend_from_slice(&bytes);
@@ -217,10 +217,10 @@ impl SerializationHelpers for Vec<u8> {
 
 impl World {
     /// Parse a ZZT world from bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<World, ParseError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<World, DecodeError> {
         let (input, _) = tag(&[0xff, 0xff][..])
             .parse(bytes)
-            .map_err(|_: nom::Err<ParseError>| ParseError::InvalidMagic)?;
+            .map_err(|_: nom::Err<DecodeError>| DecodeError::InvalidMagic)?;
         let (input, num_boards) = le_i16.parse(input)?;
         let (input, (ammo, gems, keys)) = (le_i16, le_i16, count(bool_u8, 7)).parse(input)?;
         let (input, (health, starting_board, torches, torch_cycles, energizer_cycles)) =
@@ -235,7 +235,7 @@ impl World {
         // Load boards
         let num_boards = num_boards as usize + 1;
         let (_input, chunks) = count(board_slice, num_boards).parse(input)?;
-        let boards: Result<Vec<Board>, ParseError> = chunks
+        let boards: Result<Vec<Board>, DecodeError> = chunks
             .iter()
             .map(|bytes: &&[u8]| Board::from_bytes(bytes))
             .collect();
@@ -261,7 +261,7 @@ impl World {
     }
 
     /// Serialize this world to bytes.
-    pub fn to_bytes(&self) -> Result<Vec<u8>, ParseError> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, EncodeError> {
         let mut result = Vec::with_capacity(512);
         result.push_i16(-1); // file magic: ZZT world
         result.push_i16(self.boards.len() as i16 - 1);
@@ -295,7 +295,7 @@ impl World {
 
 impl Board {
     /// Parse a board from bytes (including the 2-byte size header).
-    pub fn from_bytes(bytes: &[u8]) -> Result<Board, ParseError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Board, DecodeError> {
         // Ignore length bytes
         let (input, _) = le_u16.parse(bytes)?;
 
@@ -313,7 +313,7 @@ impl Board {
             for _ in 0..count {
                 tiles.push(Tile { element, color });
                 if tiles.len() > NUM_TILES {
-                    return Err(ParseError::InvalidTileCount(tiles.len()));
+                    return Err(DecodeError::InvalidTileCount(tiles.len()));
                 }
             }
         }
@@ -334,7 +334,7 @@ impl Board {
         let (input, num_stats) = le_i16(input)?;
         let num_stats = num_stats + 1;
         if num_stats < 0 {
-            return Err(ParseError::NegativeStatCount);
+            return Err(DecodeError::NegativeStatCount);
         }
         let (_input, stats) = count(Stat::parse, num_stats as usize).parse(input)?;
 
@@ -357,19 +357,19 @@ impl Board {
     }
 
     /// Parse a standalone .brd file (same format, no world header).
-    pub fn from_brd_bytes(bytes: &[u8]) -> Result<Board, ParseError> {
+    pub fn from_brd_bytes(bytes: &[u8]) -> Result<Board, DecodeError> {
         Board::from_bytes(bytes)
     }
 
     /// Serialize this board to bytes.
-    pub fn to_bytes(&self) -> Result<Vec<u8>, ParseError> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, EncodeError> {
         let mut result = vec![];
         result.push_padding(2); // reserve space for board size
         result.push_string(50, &self.name)?;
 
         // Encode terrain
         if self.tiles.len() != 1500 {
-            return Err(ParseError::InvalidTileCount(self.tiles.len()));
+            return Err(EncodeError::InvalidTileCount(self.tiles.len()));
         }
         let mut iter = self.tiles.iter().peekable();
         while let Some(tile) = iter.next() {
@@ -407,7 +407,7 @@ impl Board {
         // Fix up board size
         let size: u16 = (result.len() - 2)
             .try_into()
-            .map_err(|_| ParseError::BoardTooLarge)?;
+            .map_err(|_| EncodeError::BoardTooLarge)?;
         result.splice(0..2, size.to_le_bytes());
 
         Ok(result)
@@ -415,7 +415,7 @@ impl Board {
 }
 
 impl Stat {
-    fn parse(input: &[u8]) -> IResult<&[u8], Self, ParseError> {
+    fn parse(input: &[u8]) -> IResult<&[u8], Self, DecodeError> {
         let (input, (x, y, x_step, y_step)) = (le_u8, le_u8, le_i16, le_i16).parse(input)?;
         let (input, (cycle, p1, p2, p3)) = (le_i16, le_u8, le_u8, le_u8).parse(input)?;
         let (input, (follower, leader)) = (le_i16, le_i16).parse(input)?;
@@ -459,7 +459,7 @@ impl Stat {
         ))
     }
 
-    fn to_bytes(&self) -> Result<Vec<u8>, ParseError> {
+    fn to_bytes(&self) -> Result<Vec<u8>, EncodeError> {
         let mut result = vec![];
         result.push(self.x);
         result.push(self.y);

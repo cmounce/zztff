@@ -1,10 +1,10 @@
 use codepage_437::CP437_WINGDINGS;
 
-use super::error::ParseError;
+use super::error::EncodeError;
 
 /// Serialize a multi-line code string for an object or a scroll.
 /// Uses ZZT's convention of CR-terminated lines.
-pub fn encode_multiline(input: &str) -> Result<Vec<u8>, ParseError> {
+pub fn encode_multiline(input: &str) -> Result<Vec<u8>, EncodeError> {
     input
         .chars()
         .map(|c| {
@@ -13,7 +13,7 @@ pub fn encode_multiline(input: &str) -> Result<Vec<u8>, ParseError> {
             } else {
                 CP437_WINGDINGS
                     .encode(c)
-                    .ok_or_else(|| ParseError::EncodingError(c))
+                    .ok_or_else(|| EncodeError::EncodingError(c))
             }
         })
         .collect()
@@ -35,13 +35,13 @@ pub fn decode_multiline(input: &[u8]) -> String {
 
 /// Serialize a single-line string for a board title.
 /// Newlines cannot be encoded because ZZT interprets them as dingbats (♪).
-pub fn encode_oneline(input: &str) -> Result<Vec<u8>, ParseError> {
+pub fn encode_oneline(input: &str) -> Result<Vec<u8>, EncodeError> {
     input
         .chars()
         .map(|c| {
             CP437_WINGDINGS
                 .encode(c)
-                .ok_or_else(|| ParseError::EncodingError(c))
+                .ok_or_else(|| EncodeError::EncodingError(c))
         })
         .collect()
 }
