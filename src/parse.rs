@@ -1,4 +1,4 @@
-use std::num::NonZero;
+use std::{fmt::Debug, num::NonZero};
 
 use nom::{
     IResult, Parser,
@@ -54,7 +54,7 @@ impl Default for World {
 }
 
 /// A ZZT board.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Board {
     pub name: String,
     pub tiles: [Tile; 1500],
@@ -90,6 +90,35 @@ impl Default for Board {
             time_limit: 0,
             stats: Vec::new(),
         }
+    }
+}
+
+/// Manual implementation of Debug that hides the contents of the `tiles` array.
+///
+/// The default formatting of 1500 Tile structs is almost never useful to see in the Debug output
+/// for a Board, let alone a World. And visualizing terrain isn't the focus of this library. So to
+/// make the stock Debug more generally useful, we skip the terrain.
+///
+/// If you want to inspect the terrain, you probably want to write your own visualizer for it.
+/// (Or you could Debug format the `tiles` field individually if you honestly really want that.)
+impl Debug for Board {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Board")
+            .field("name", &self.name)
+            .field("tiles", &format_args!("[Tile; 1500]"))
+            .field("max_shots", &self.max_shots)
+            .field("is_dark", &self.is_dark)
+            .field("exit_north", &self.exit_north)
+            .field("exit_south", &self.exit_south)
+            .field("exit_west", &self.exit_west)
+            .field("exit_east", &self.exit_east)
+            .field("restart_on_zap", &self.restart_on_zap)
+            .field("message", &self.message)
+            .field("enter_x", &self.enter_x)
+            .field("enter_y", &self.enter_y)
+            .field("time_limit", &self.time_limit)
+            .field("stats", &self.stats)
+            .finish()
     }
 }
 
@@ -238,6 +267,30 @@ impl World {
 }
 
 impl Board {
+    /// Get the tile at the specified coordinates.
+    ///
+    /// This uses ZZT's 1-based coordinates, so (1, 1) is the top-left corner of the board.
+    /// Panics if the coordinates lie outside the Board's 60x25 terrain area.
+    pub fn tile(&self, x: usize, y: usize) -> Tile {
+        assert!(
+            x >= 1 && x <= 60 && y >= 1 && y <= 25,
+            "tile coords out of range: ({x}, {y})"
+        );
+        self.tiles[(y - 1) * 60 + (x - 1)]
+    }
+
+    /// Set the tile at the specified coordinates.
+    ///
+    /// This uses ZZT's 1-based coordinates, so (1, 1) is the top-left corner of the board.
+    /// Panics if the coordinates lie outside the Board's 60x25 terrain area.
+    pub fn set_tile(&mut self, x: usize, y: usize, tile: Tile) {
+        assert!(
+            x >= 1 && x <= 60 && y >= 1 && y <= 25,
+            "tile coords out of range: ({x}, {y})"
+        );
+        self.tiles[(y - 1) * 60 + (x - 1)] = tile;
+    }
+
     /// Parse a board from bytes (including the 2-byte size header).
     pub fn from_bytes(bytes: &[u8]) -> Result<Board, DecodeError> {
         // Ignore length bytes
@@ -510,5 +563,36 @@ mod tests {
     fn decode_snapshot() {
         let world = World::from_bytes(BYTES).unwrap();
         assert_debug_snapshot!(world);
+    }
+
+    /// Format board terrain as two hex grids (elements, then colors).
+    fn format_tiles(board: &Board) -> String {
+        let mut out = String::new();
+        for y in 1..=25 {
+            for x in 1..=60 {
+                out.push_str(&format!("{:02x}", board.tile(x, y).element));
+            }
+            out.push('\n');
+        }
+        out.push('\n');
+        for y in 1..=25 {
+            for x in 1..=60 {
+                out.push_str(&format!("{:02x}", board.tile(x, y).color));
+            }
+            out.push('\n');
+        }
+        out.push('\n');
+        out
+    }
+
+    #[test]
+    fn tiles_snapshot() {
+        let world = World::from_bytes(BYTES).unwrap();
+        let mut all_tiles = String::new();
+        for (i, board) in world.boards.iter().enumerate() {
+            all_tiles.push_str(&format!("// board {}: {}\n", i, board.name));
+            all_tiles.push_str(&format_tiles(board));
+        }
+        insta::assert_snapshot!(all_tiles);
     }
 }
