@@ -11,28 +11,85 @@ use super::elements::Element;
 use super::encoding::{decode_multiline, decode_oneline, encode_multiline, encode_oneline};
 use super::error::{DecodeError, EncodeError};
 
-/// A single tile on a ZZT board.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct Tile {
-    pub element: u8,
-    pub color: u8,
+/// A ZZT world file.
+#[derive(Clone, Debug)]
+pub struct World {
+    pub ammo: i16,
+    pub gems: i16,
+    pub keys: [bool; 7],
+    pub health: i16,
+    pub starting_board: i16,
+    pub torches: i16,
+    pub torch_cycles: i16,
+    pub energizer_cycles: i16,
+    pub score: i16,
+    pub name: String,
+    pub flags: [String; 10],
+    pub time: i16,
+    pub time_ticks: i16,
+    pub saved_game: bool,
+    pub boards: Vec<Board>,
 }
 
-/// A stat's ZZT-OOP program.
-///
-/// In ZZT, stats can either have their own code or bind to another stat's code.
-/// This enum prevents invalid states where both are set.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Program {
-    /// The stat owns its own code.
-    Own(String),
-    /// The stat is bound to another stat (index into the stats list).
-    Bound(NonZero<u16>),
-}
-
-impl Default for Program {
+impl Default for World {
     fn default() -> Self {
-        Program::Own(String::new())
+        World {
+            ammo: 0,
+            gems: 0,
+            keys: [false; 7],
+            health: 100,
+            starting_board: 0,
+            torches: 0,
+            torch_cycles: 0,
+            energizer_cycles: 0,
+            score: 0,
+            name: String::new(),
+            flags: Default::default(),
+            time: 0,
+            time_ticks: 0,
+            saved_game: false,
+            boards: Vec::new(),
+        }
+    }
+}
+
+/// A ZZT board.
+#[derive(Debug, Clone)]
+pub struct Board {
+    pub name: String,
+    pub tiles: [Tile; 1500],
+    pub max_shots: u8,
+    pub is_dark: bool,
+    pub exit_north: Option<NonZero<u8>>,
+    pub exit_south: Option<NonZero<u8>>,
+    pub exit_west: Option<NonZero<u8>>,
+    pub exit_east: Option<NonZero<u8>>,
+    pub restart_on_zap: bool,
+    pub message: String,
+    pub enter_x: u8,
+    pub enter_y: u8,
+    pub time_limit: i16,
+    pub stats: Vec<Stat>,
+}
+
+impl Default for Board {
+    fn default() -> Self {
+        Board {
+            name: String::new(),
+            tiles: [Tile::default(); 1500],
+            max_shots: 255,
+            is_dark: false,
+            exit_north: None,
+            exit_south: None,
+            exit_west: None,
+            exit_east: None,
+            restart_on_zap: false,
+            message: String::new(),
+            enter_x: 1,
+            enter_y: 1,
+            time_limit: 0,
+            stats: Vec::new(),
+        }
     }
 }
 
@@ -77,141 +134,28 @@ impl Default for Stat {
     }
 }
 
-/// A ZZT board.
-#[derive(Debug, Clone)]
-pub struct Board {
-    pub name: String,
-    pub tiles: Vec<Tile>,
-    pub max_shots: u8,
-    pub is_dark: bool,
-    pub exit_north: Option<NonZero<u8>>,
-    pub exit_south: Option<NonZero<u8>>,
-    pub exit_west: Option<NonZero<u8>>,
-    pub exit_east: Option<NonZero<u8>>,
-    pub restart_on_zap: bool,
-    pub message: String,
-    pub enter_x: u8,
-    pub enter_y: u8,
-    pub time_limit: i16,
-    pub stats: Vec<Stat>,
+/// A single tile on a ZZT board.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Tile {
+    pub element: u8,
+    pub color: u8,
 }
 
-impl Default for Board {
+/// A stat's ZZT-OOP program.
+///
+/// In ZZT, stats can either have their own code or bind to another stat's code.
+/// This enum prevents invalid states where both are set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Program {
+    /// The stat owns its own code.
+    Own(String),
+    /// The stat is bound to another stat (index into the stats list).
+    Bound(NonZero<u16>),
+}
+
+impl Default for Program {
     fn default() -> Self {
-        Board {
-            name: String::new(),
-            tiles: Vec::new(),
-            max_shots: 255,
-            is_dark: false,
-            exit_north: None,
-            exit_south: None,
-            exit_west: None,
-            exit_east: None,
-            restart_on_zap: false,
-            message: String::new(),
-            enter_x: 1,
-            enter_y: 1,
-            time_limit: 0,
-            stats: Vec::new(),
-        }
-    }
-}
-
-/// A ZZT world file.
-#[derive(Clone, Debug)]
-pub struct World {
-    pub ammo: i16,
-    pub gems: i16,
-    pub keys: [bool; 7],
-    pub health: i16,
-    pub starting_board: i16,
-    pub torches: i16,
-    pub torch_cycles: i16,
-    pub energizer_cycles: i16,
-    pub score: i16,
-    pub name: String,
-    pub flags: [String; 10],
-    pub time: i16,
-    pub time_ticks: i16,
-    pub locked: bool,
-    pub boards: Vec<Board>,
-}
-
-impl Default for World {
-    fn default() -> Self {
-        World {
-            ammo: 0,
-            gems: 0,
-            keys: [false; 7],
-            health: 100,
-            starting_board: 0,
-            torches: 0,
-            torch_cycles: 0,
-            energizer_cycles: 0,
-            score: 0,
-            name: String::new(),
-            flags: Default::default(),
-            time: 0,
-            time_ticks: 0,
-            locked: false,
-            boards: Vec::new(),
-        }
-    }
-}
-
-// Parsing helpers
-
-fn bool_u8(input: &[u8]) -> IResult<&[u8], bool, DecodeError> {
-    let (input, byte) = le_u8(input)?;
-    Ok((input, byte != 0))
-}
-
-fn pstring(cap: u8) -> impl Fn(&[u8]) -> IResult<&[u8], String, DecodeError> {
-    move |input: &[u8]| -> IResult<&[u8], String, DecodeError> {
-        let (input, len) = le_u8(input)?;
-        let actual_len = len.min(cap);
-        let (input, data) = take(actual_len)(input)?;
-        let (input, _) = take(cap - actual_len)(input)?;
-        Ok((input, decode_oneline(data)))
-    }
-}
-
-fn board_slice(bytes: &[u8]) -> IResult<&[u8], &[u8], DecodeError> {
-    let (_, size) = le_u16.parse(bytes)?;
-    take(size as usize + 2).parse(bytes)
-}
-
-// Serialization helpers
-
-trait SerializationHelpers {
-    fn push_bool(&mut self, value: bool);
-    fn push_i16(&mut self, value: i16);
-    fn push_string(&mut self, cap: u8, value: &str) -> Result<(), EncodeError>;
-    fn push_padding(&mut self, size: usize);
-}
-
-impl SerializationHelpers for Vec<u8> {
-    fn push_bool(&mut self, value: bool) {
-        self.push(if value { 1 } else { 0 });
-    }
-
-    fn push_i16(&mut self, value: i16) {
-        self.extend(value.to_le_bytes());
-    }
-
-    fn push_string(&mut self, cap: u8, value: &str) -> Result<(), EncodeError> {
-        let bytes = encode_oneline(value)?;
-        if bytes.len() > cap as usize {
-            return Err(EncodeError::StringTooLong { max: cap });
-        }
-        self.push(bytes.len() as u8);
-        self.extend_from_slice(&bytes);
-        self.push_padding(cap as usize - bytes.len());
-        Ok(())
-    }
-
-    fn push_padding(&mut self, size: usize) {
-        self.resize(self.len() + size, 0);
+        Program::Own(String::new())
     }
 }
 
@@ -227,7 +171,7 @@ impl World {
             (le_i16, le_i16, le_i16, le_i16, le_i16).parse(input)?;
         let (input, (_, score, name)) = (take(2usize), le_i16, pstring(20)).parse(input)?;
         let (input, flags) = count(pstring(20), 10).parse(input)?;
-        let (_input, (time, time_ticks, locked)) = (le_i16, le_i16, bool_u8).parse(input)?;
+        let (_input, (time, time_ticks, saved_game)) = (le_i16, le_i16, bool_u8).parse(input)?;
 
         // Rest of header is padding; fast-forward starting from original input
         let (input, _) = take(512usize).parse(bytes)?;
@@ -255,7 +199,7 @@ impl World {
             flags: flags.try_into().unwrap(),
             time,
             time_ticks,
-            locked,
+            saved_game,
             boards,
         })
     }
@@ -283,7 +227,7 @@ impl World {
         }
         result.push_i16(self.time);
         result.push_i16(self.time_ticks);
-        result.push_bool(self.locked);
+        result.push_bool(self.saved_game);
         result.push_padding(512 - result.len());
 
         for board in &self.boards {
@@ -305,16 +249,18 @@ impl Board {
         // Read terrain
         const NUM_TILES: usize = 60 * 25;
         let mut input = input;
-        let mut tiles = Vec::with_capacity(NUM_TILES);
-        while tiles.len() < NUM_TILES {
+        let mut tiles = [Tile::default(); NUM_TILES];
+        let mut tile_index = 0;
+        while tile_index < NUM_TILES {
             let (next_input, (count, element, color)) = (le_u8, le_u8, le_u8).parse(input)?;
             input = next_input;
             let count: usize = if count == 0 { 256 } else { count.into() };
             for _ in 0..count {
-                tiles.push(Tile { element, color });
-                if tiles.len() > NUM_TILES {
-                    return Err(DecodeError::InvalidTileCount(tiles.len()));
+                if tile_index >= NUM_TILES {
+                    return Err(DecodeError::InvalidTileCount(tile_index + 1));
                 }
+                tiles[tile_index] = Tile { element, color };
+                tile_index += 1;
             }
         }
 
@@ -368,9 +314,6 @@ impl Board {
         result.push_string(50, &self.name)?;
 
         // Encode terrain
-        if self.tiles.len() != 1500 {
-            return Err(EncodeError::InvalidTileCount(self.tiles.len()));
-        }
         let mut iter = self.tiles.iter().peekable();
         while let Some(tile) = iter.next() {
             let mut count: u8 = 1;
@@ -490,6 +433,62 @@ impl Stat {
         }
 
         Ok(result)
+    }
+}
+
+// Parsing helpers
+
+fn bool_u8(input: &[u8]) -> IResult<&[u8], bool, DecodeError> {
+    let (input, byte) = le_u8(input)?;
+    Ok((input, byte != 0))
+}
+
+fn pstring(cap: u8) -> impl Fn(&[u8]) -> IResult<&[u8], String, DecodeError> {
+    move |input: &[u8]| -> IResult<&[u8], String, DecodeError> {
+        let (input, len) = le_u8(input)?;
+        let actual_len = len.min(cap);
+        let (input, data) = take(actual_len)(input)?;
+        let (input, _) = take(cap - actual_len)(input)?;
+        Ok((input, decode_oneline(data)))
+    }
+}
+
+fn board_slice(bytes: &[u8]) -> IResult<&[u8], &[u8], DecodeError> {
+    let (_, size) = le_u16.parse(bytes)?;
+    take(size as usize + 2).parse(bytes)
+}
+
+// Serialization helpers
+
+trait SerializationHelpers {
+    fn push_bool(&mut self, value: bool);
+    fn push_i16(&mut self, value: i16);
+    fn push_string(&mut self, cap: u8, value: &str) -> Result<(), EncodeError>;
+    fn push_padding(&mut self, size: usize);
+}
+
+impl SerializationHelpers for Vec<u8> {
+    fn push_bool(&mut self, value: bool) {
+        self.push(if value { 1 } else { 0 });
+    }
+
+    fn push_i16(&mut self, value: i16) {
+        self.extend(value.to_le_bytes());
+    }
+
+    fn push_string(&mut self, cap: u8, value: &str) -> Result<(), EncodeError> {
+        let bytes = encode_oneline(value)?;
+        if bytes.len() > cap as usize {
+            return Err(EncodeError::StringTooLong { max: cap });
+        }
+        self.push(bytes.len() as u8);
+        self.extend_from_slice(&bytes);
+        self.push_padding(cap as usize - bytes.len());
+        Ok(())
+    }
+
+    fn push_padding(&mut self, size: usize) {
+        self.resize(self.len() + size, 0);
     }
 }
 

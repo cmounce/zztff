@@ -35,7 +35,7 @@ World {
     ],
     time: 1007,
     time_ticks: 0,
-    locked: true,
+    saved_game: true,
     boards: [
         Board {
             name: "Title screen",

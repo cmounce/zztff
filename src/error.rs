@@ -12,17 +12,23 @@ pub enum DecodeError {
     #[error("negative stat count")]
     NegativeStatCount,
 
-    #[error("nom error: {0}")]
-    NomError(String),
+    #[error("unexpected end of file")]
+    UnexpectedEof,
+
+    #[error("unknown decode error")]
+    Unknown,
 }
 
 impl<I> NomParseError<I> for DecodeError {
     fn from_error_kind(_input: I, kind: ErrorKind) -> Self {
-        Self::NomError(kind.description().to_string())
+        match kind {
+            ErrorKind::Eof => Self::UnexpectedEof,
+            _ => Self::Unknown,
+        }
     }
 
-    fn append(_input: I, kind: ErrorKind, other: Self) -> Self {
-        Self::NomError(format!("{}: {:?}", other, kind))
+    fn append(_input: I, _kind: ErrorKind, other: Self) -> Self {
+        other
     }
 }
 
@@ -30,16 +36,13 @@ impl From<nom::Err<DecodeError>> for DecodeError {
     fn from(value: nom::Err<DecodeError>) -> Self {
         match value {
             nom::Err::Error(e) | nom::Err::Failure(e) => e,
-            nom::Err::Incomplete(needed) => Self::NomError(format!("incomplete: {:?}", needed)),
+            nom::Err::Incomplete(_) => Self::UnexpectedEof,
         }
     }
 }
 
 #[derive(Debug, Error)]
 pub enum EncodeError {
-    #[error("invalid tile count: {0}")]
-    InvalidTileCount(usize),
-
     #[error("string too long")]
     StringTooLong { max: u8 },
 
