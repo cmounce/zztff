@@ -16,7 +16,7 @@ use super::error::{DecodeError, EncodeError};
 pub struct World {
     pub ammo: i16,
     pub gems: i16,
-    pub keys: [bool; 7],
+    pub keys: Keys,
     pub health: i16,
     pub starting_board: i16,
     pub torches: i16,
@@ -36,7 +36,7 @@ impl Default for World {
         World {
             ammo: 0,
             gems: 0,
-            keys: [false; 7],
+            keys: Keys::default(),
             health: 100,
             starting_board: 0,
             torches: 0,
@@ -51,6 +51,18 @@ impl Default for World {
             boards: Vec::new(),
         }
     }
+}
+
+/// The player's keys, as stored in the world header.
+#[derive(Clone, Debug, Default)]
+pub struct Keys {
+    pub blue: bool,
+    pub green: bool,
+    pub cyan: bool,
+    pub red: bool,
+    pub purple: bool,
+    pub yellow: bool,
+    pub white: bool,
 }
 
 /// A ZZT board.
@@ -217,7 +229,15 @@ impl World {
         Ok(World {
             ammo,
             gems,
-            keys: keys.try_into().unwrap(),
+            keys: Keys {
+                blue: keys[0],
+                green: keys[1],
+                cyan: keys[2],
+                red: keys[3],
+                purple: keys[4],
+                yellow: keys[5],
+                white: keys[6],
+            },
             health,
             starting_board,
             torches,
@@ -240,9 +260,13 @@ impl World {
         result.push_i16(self.boards.len() as i16 - 1);
         result.push_i16(self.ammo);
         result.push_i16(self.gems);
-        for key in self.keys {
-            result.push_bool(key);
-        }
+        result.push_bool(self.keys.blue);
+        result.push_bool(self.keys.green);
+        result.push_bool(self.keys.cyan);
+        result.push_bool(self.keys.red);
+        result.push_bool(self.keys.purple);
+        result.push_bool(self.keys.yellow);
+        result.push_bool(self.keys.white);
         result.push_i16(self.health);
         result.push_i16(self.starting_board);
         result.push_i16(self.torches);
