@@ -3,6 +3,11 @@ name = "zztff"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+description = "Library for reading/writing ZZT worlds and boards"
+repository = "https://github.com/cmounce/zztff"
+readme = "README.md"
+keywords = ["zzt", "encoder", "decoder", "gamedev"]
+categories = ["parser-implementations", "encoding"]
 
 [dependencies]
 codepage-437 = "0.1"
