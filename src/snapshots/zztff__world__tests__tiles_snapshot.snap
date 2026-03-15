@@ -1,5 +1,6 @@
 ---
-source: src/parse.rs
+source: src/world.rs
+assertion_line: 620
 expression: all_tiles
 ---
 // board 0: Title screen

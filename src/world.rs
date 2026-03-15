@@ -8,8 +8,8 @@ use nom::{
 };
 
 use super::elements::Element;
-use super::encoding::{decode_multiline, decode_oneline, encode_multiline, encode_oneline};
-use super::error::{DecodeError, EncodeError};
+use super::errors::{DecodeError, EncodeError};
+use super::text::{decode_multiline, decode_oneline, encode_multiline, encode_oneline};
 
 /// A ZZT world file.
 #[derive(Clone, Debug)]

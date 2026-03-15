@@ -1,6 +1,6 @@
 use codepage_437::CP437_WINGDINGS;
 
-use super::error::EncodeError;
+use super::errors::EncodeError;
 
 /// Serialize a multi-line code string for an object or a scroll.
 /// Uses ZZT's convention of CR-terminated lines.

@@ -1,9 +1,9 @@
 mod elements;
-mod encoding;
-mod error;
-mod parse;
+mod errors;
+mod text;
+mod world;
 
 pub use elements::Element;
-pub use encoding::{decode_multiline, decode_oneline, encode_multiline, encode_oneline};
-pub use error::{DecodeError, EncodeError};
-pub use parse::{Board, Keys, Program, Stat, Tile, World};
+pub use errors::{DecodeError, EncodeError};
+pub use text::{decode_multiline, decode_oneline, encode_multiline, encode_oneline};
+pub use world::{Board, Keys, Program, Stat, Tile, World};

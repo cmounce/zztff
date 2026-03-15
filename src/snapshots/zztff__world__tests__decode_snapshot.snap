@@ -1,5 +1,6 @@
 ---
-source: src/parse.rs
+source: src/world.rs
+assertion_line: 589
 expression: world
 ---
 World {
