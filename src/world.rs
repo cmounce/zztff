@@ -121,22 +121,63 @@ pub struct Keys {
     pub white: bool,
 }
 
-/// A ZZT board.
+/// An individual ZZT board.
+///
+/// Boards mainly exist within a containing [`World`]. But as part of a editing workflow, they can
+/// also be packaged as standalone .BRD files, which use the same format; use
+/// [`Board::from_brd_bytes`] to parse one.
 #[derive(Clone)]
 pub struct Board {
+    /// The board's title.
+    ///
+    /// Board titles are not shown during gameplay; they exist for organizational purposes while
+    /// editing.
+    ///
+    /// The file format supports a maximum length of 50 characters. But editors usually impose
+    /// shorter limits: ZZT's internal editor artificially limits titles to 34 characters, and
+    /// titles longer than 42 characters may cause visual glitches when displayed in a
+    /// standard-width message box.
     pub name: String,
+    /// The 60x25 terrain grid, stored in order from left-to-right, top-to-bottom.
+    ///
+    /// For convenience, [`Board::tile`] and [`Board::set_tile`] are available for coordinate-based
+    /// access, but in some cases if you are updating lots of tiles, it may be more efficient to
+    /// directly mutate this array.
     pub tiles: [Tile; 1500],
+    /// Maximum number of bullets the player can have on screen at once on this board.
     pub max_shots: u8,
+    /// Whether the board is dark.
     pub is_dark: bool,
+    /// Board index of the northern neighbor, or `None` for no exit.
+    ///
+    /// Internally, ZZT uses zero to indicate "no exit". For this reason, it is impossible for a
+    /// board edge to link to the title screen, because board index 0 is unrepresentable.
     pub exit_north: Option<NonZero<u8>>,
+    /// Board index of the southern neighbor, or `None` for no exit.
     pub exit_south: Option<NonZero<u8>>,
+    /// Board index of the western neighbor, or `None` for no exit.
     pub exit_west: Option<NonZero<u8>>,
+    /// Board index of the eastern neighbor, or `None` for no exit.
     pub exit_east: Option<NonZero<u8>>,
+    /// Whether the player restarts at the board entrance after taking damage.
     pub restart_on_zap: bool,
+    /// The currently-flashing status bar message (max 58 characters).
     pub message: String,
+    /// X coordinate where the player entered the board (1-based).
+    ///
+    /// The entrance coordinates are part of the "re-enter when zapped" feature. The values only
+    /// really matter if the user starts out on this board; they will be overwritten with the
+    /// player's actual entry coordinates during play.
     pub enter_x: u8,
+    /// Y coordinate where the player entered the board (1-based).
     pub enter_y: u8,
+    /// Time limit for the board in seconds (0 = no limit).
     pub time_limit: i16,
+    /// Status elements on this board (objects, creatures, the player, etc.).
+    ///
+    /// ZZT 3.2 supports a maximum of 151 stats per board. The file format can handle more than
+    /// that, and zztff will happily read/write more than 151 stats, but ZZT may crash if this limit
+    /// is exceeded.
     pub stats: Vec<Stat>,
 }
 
