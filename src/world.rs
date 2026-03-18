@@ -232,20 +232,92 @@ impl Debug for Board {
 }
 
 /// A status element on a ZZT board.
+///
+/// Stats provide additional data for specific tiles on the board. The majority of tiles will be
+/// static, such as most of the board terrain (walls, water, empties, etc). But many things that
+/// move, or any tile that needs state or code, will have an associated stat.
+///
+/// A stat's x/y coordinates are what link them to their associated tiles. Typically this is a 1:1
+/// relationship: if there is an object tile at (12, 34), the board's stat list will usually have
+/// exactly one entry that points to (12, 34). However, there are advanced use cases for having
+/// multiple stats (or no stats!) in specific situations. So zztff does not enforce a 1:1
+/// relationship---that is the responsibility of editing software that wants to be user friendly.
+///
+/// ZZT has a wide variety of tile types, called elements. The precise meanings of some of the
+/// fields (particularly `p1`, `p2`, and `p3`) will vary depending on which tile the stat is pointed
+/// at. You may want to consult a reference source, such as [the wiki articles on
+/// elements](https://wiki.zzt.org/wiki/Element), for more info.
 #[derive(Debug, Clone)]
 pub struct Stat {
+    /// X coordinate of the stat's tile (1-based).
     pub x: u8,
+    /// Y coordinate of the stat's tile (1-based).
     pub y: u8,
+    /// Horizontal step delta.
+    ///
+    /// This is usually -1, 0, or 1. Paired with `y_step`, the step deltas are used to encode
+    /// direction or movement. For example, for transporters, this encodes which direction the
+    /// transporter is facing, whereas for pushers, it encodes the direction of movement.
+    ///
+    /// Step values of (0, 0) or the four cardinal directions are the most common. Other step values
+    /// are possible and are useful for advanced techniques, but care must be taken to ensure that
+    /// they are safe; ZZT's bounds checking code assumes step distances will never exceed 1, so
+    /// steps larger than that may go off-board and cause memory corruption.
     pub x_step: i16,
+    /// Vertical step delta.
     pub y_step: i16,
+    /// How often this stat is updated, in game ticks.
+    ///
+    /// Roughly speaking, stats update every 1/cycle game ticks. A cycle 1 object will run its code
+    /// on every tick, a cycle 2 object runs every other tick, etc.
     pub cycle: i16,
+    /// Element-specific parameter 1.
     pub p1: u8,
+    /// Element-specific parameter 2.
     pub p2: u8,
+    /// Element-specific parameter 3.
     pub p3: u8,
+    /// Index of the following stat in a centipede chain, or -1 if none.
+    ///
+    /// Leader and follower do not need to be explicitly set if you are creating a world from
+    /// scratch; if there are no existing links, ZZT will automatically link adjacent segments into
+    /// a chain when the board first loads. These pointers are used mainly for preserving the state
+    /// of saved games---but a world author could still use them if they needed a specific centipede
+    /// layout for some reason.
     pub follower: i16,
+    /// Index of the leading stat in a centipede chain, or -1 if none.
     pub leader: i16,
+    /// The tile that is underneath this stat.
+    ///
+    /// This is often an empty tile, but it may be something else if the stat was placed on top of
+    /// another terrain element (such as a fake wall/floor). ZZT uses this field to fill in the gap
+    /// if this stat ever moves; tracking the `under` type allows stats to move over terrain without
+    /// erasing it.
+    ///
+    /// Note that this field only holds a tile, i.e., not a stat. In general, ZZT assumes that a
+    /// given coordinate can only be occupied by one stat at a time. For example, bullets may pass
+    /// over terrain, but they cannot pass by each other; they destroy each other on collision.
+    ///
+    /// (Stats can be manually made to occupy the same x/y coordinates, but although this technique
+    /// is known as "stat stacking", strictly speaking ZZT has no way to represent one stat being
+    /// above or below another. The combination of stats in this way does not behave like two
+    /// overlapping items.)
     pub under: Tile,
+    /// Current position in an object's ZZT-OOP program.
+    ///
+    /// This is a byte offset in the file format, which corresponds to a character offset in the
+    /// `String` representation. 0 starts from the top of the program and is the typical default.
+    ///
+    /// ZZT uses -1 to indicate that execution has halted; this value can be set from within ZZT
+    /// using the `#end` command, but it can also be set directly in the file format to keep an
+    /// object from running its code when the board is first loaded.
+    ///
+    /// ZZT has no call stack, so this is the main piece of execution state.
     pub instruction_pointer: i16,
+    /// The stat's ZZT-OOP program, if any.
+    ///
+    /// If a stat doesn't have a program, this is set to the empty string. This field is only ever
+    /// used by scrolls and objects, so it's pretty common for this to be empty.
     pub program: Program,
 }
 
