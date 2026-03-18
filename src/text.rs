@@ -77,6 +77,15 @@ mod tests {
     }
 
     #[test]
+    fn one_codepoint_per_byte() {
+        // This check guarantees that length checks on Unicode Strings will tell you something useful
+        // about how much headroom your text will have once serialized into a field in the file format.
+        let bytes: Vec<u8> = (0..=255).collect();
+        assert_eq!(256, decode_oneline(&bytes).chars().count());
+        assert_eq!(256, decode_multiline(&bytes).chars().count());
+    }
+
+    #[test]
     fn newlines_to_cr() {
         assert_debug_snapshot!(serialize_code("ABC\nDEF"), @r###"
         [

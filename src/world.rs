@@ -11,23 +11,79 @@ use super::elements::Element;
 use super::errors::{DecodeError, EncodeError};
 use super::text::{decode_multiline, decode_oneline, encode_multiline, encode_oneline};
 
-/// A ZZT world file.
+/// A data structure representing a ZZT world.
+///
+/// ZZT uses the same format for both worlds proper (.ZZT files) as well as their saved games (.SAV); saved games are
+/// just snapshots of the world state after it's been played in. This `World` struct is for working with either type of
+/// file.
+///
+/// Some of the fields are more esoteric than others due to this need of being able to represent the entire world state,
+/// not just the starting conditions. If you just want to create a new world, it's safe to call `::default()` and leave
+/// most of the fields alone. The only one that needs a non-default value is [`World::name`].
 #[derive(Clone, Debug)]
 pub struct World {
+    /// Value of the `ammo` counter.
     pub ammo: i16,
+    /// Value of the `gems` counter.
     pub gems: i16,
+    /// Which keys the player is carrying.
     pub keys: Keys,
+    /// Value of the `health` counter.
     pub health: i16,
+    /// Index of the board the player starts on.
+    ///
+    /// If this is a saved game, this field holds the index of the board that the player is _currently_ on, which is
+    /// where they will start play upon restoring their save.
     pub starting_board: i16,
+    /// Value of the `torches` counter.
     pub torches: i16,
+    /// Remaining cycles of torch light (0 = torch not active).
     pub torch_cycles: i16,
+    /// Remaining cycles of energizer effect (0 = not active).
     pub energizer_cycles: i16,
+    /// Value of the `score` counter.
     pub score: i16,
+    /// Stem of the world's filename, e.g., "TOWN" for a world named TOWN.ZZT (max 20 characters).
+    ///
+    /// This field should typically match the filename of the .ZZT file you're writing to disk. If it differs, ZZT may
+    /// have trouble loading your file.
+    ///
+    /// For saved games (.SAV files), this field should match the filename of the .ZZT file that was being played.
+    /// played. ZZT uses this field to associate the saved game with the world file it came from.
     pub name: String,
+    /// Named flags set by ZZT-OOP `#set` commands (max 20 characters each).
+    ///
+    /// Empty strings represent unused slots. The slot order is mostly invisible to ZZT-OOP, and ZZT will fill up the
+    /// slots from lowest to highest. However, order does matter once the array is full: trying to `#set` an eleventh
+    /// flag overwrites the tenth slot.
+    ///
+    /// The file format supports arbitrary names, but ZZT-OOP only recognizes uppercase flags. Additionally, ZZT-OOP's
+    /// quirky parsing rules mean that many special characters are not recognized; see [this wiki
+    /// article](https://wiki.zzt.org/wiki/Set) for details.
     pub flags: [String; 10],
+    /// Value of the `time` counter.
     pub time: i16,
+    /// Sub-second state for the `time` countdown.
+    ///
+    /// When on a board with a time limit, ZZT decrements the `time` counter approximately every second. This field
+    /// tracks partial seconds that have elapsed, so that ZZT can decide between decrementing `time` during this tick
+    /// versus waiting another tick.
     pub time_ticks: i16,
+    /// Whether this file is a saved game (.SAV) rather than a world file (.ZZT).
+    ///
+    /// ZZT 3.2 uses this as an anti-cheat mechanism: the built-in editor refuses to open any files that have it set to
+    /// true. Otherwise, people could temporarily rename their save to have a .ZZT extension, then edit their way out of
+    /// a sticky situation.
+    ///
+    /// (This was never very secure, and is even less of a deterrent nowadays. But it's still part of the file format.)
     pub saved_game: bool,
+    /// The boards in this world.
+    ///
+    /// A valid world must have at least 1 board (the title screen). Trying to serialize an empty world will result in
+    /// an encoding error.
+    ///
+    /// ZZT 3.2 supports a maximum of 101 boards per world. The file format (and zztff) can handle larger worlds, but
+    /// trying to load them in ZZT may cause it to crash.
     pub boards: Vec<Board>,
 }
 
