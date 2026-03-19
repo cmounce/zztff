@@ -1,6 +1,6 @@
 [package]
 name = "zztff"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 description = "Library for reading/writing ZZT worlds and boards"
