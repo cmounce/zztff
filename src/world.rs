@@ -351,15 +351,36 @@ pub struct Tile {
     pub color: u8,
 }
 
-/// A stat's ZZT-OOP program.
+/// A stat's ZZT-OOP program text.
 ///
-/// In ZZT, stats can either have their own code or bind to another stat's code.
-/// This enum prevents invalid states where both are set.
+/// Stats must either have their own program or bind to another stat's program. This is either-or:
+/// in ZZT, it is impossible to represent a stat that has both (or neither). This enum models that
+/// constraint.
+///
+/// Internally, this is because ZZT uses a single `i16` like an enum discriminant. Zero or more
+/// indicates the length of the program text, i.e., how many bytes follow the stat on disk. Negative
+/// values are interpreted as negated bind indexes: -123 means no program text follows, and that the
+/// stat instead shares code with the 123rd stat on the board.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Program {
-    /// The stat owns its own code.
+    /// The stat has its own program code.
+    ///
+    /// This is the typical default for most stats. For stats that don't have or need a program, an
+    /// empty `String` is used. The text has a maximum of 32767 characters, though in ZZT 3.2 you
+    /// will encounter other limits before that.
+    ///
+    /// Despite the name, this has more to do with ZZT's behavior than with Rust ownership.
     Own(String),
-    /// The stat is bound to another stat (index into the stats list).
+    /// The stat is bound to the code at the given stat index.
+    ///
+    /// Bind indexes are 0-based, with the asterisk that zero is not representable due to how ZZT
+    /// encodes bind indexes. The smallest possible value is 1, which represents being bound to the
+    /// stat that comes immediately after the player.
+    ///
+    /// The largest representable bind index is 32768. zztff will successfully serialize this value,
+    /// though it's only useful as a curiosity and will likely crash ZZT: the index will definitely
+    /// be out of bounds because it is impossible to serialize a stat list that long without hitting
+    /// other limits in the file format. Indexes larger than that will result in an [`EncodeError`].
     Bound(NonZero<u16>),
 }
 

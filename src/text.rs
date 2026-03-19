@@ -3,7 +3,8 @@ use codepage_437::CP437_WINGDINGS;
 use super::errors::EncodeError;
 
 /// Serialize a multi-line code string for an object or a scroll.
-/// Uses ZZT's convention of CR-terminated lines.
+///
+/// Characters that do not have a CP437 equivalent will result in an [`EncodeError::EncodingError`].
 pub fn encode_multiline(input: &str) -> Result<Vec<u8>, EncodeError> {
     input
         .chars()
@@ -33,8 +34,11 @@ pub fn decode_multiline(input: &[u8]) -> String {
         .collect()
 }
 
-/// Serialize a single-line string for a board title.
-/// Newlines cannot be encoded because ZZT interprets them as dingbats (♪).
+/// Serialize a single-line string, such as a board title.
+///
+/// Newlines cannot be encoded because in single-line contexts, ZZT interprets that byte as a
+/// dingbat, specifically the '♪' character. Passing a newline, or any non-CP437 character, will
+/// result in an [`EncodeError::EncodingError`].
 pub fn encode_oneline(input: &str) -> Result<Vec<u8>, EncodeError> {
     input
         .chars()
@@ -46,7 +50,7 @@ pub fn encode_oneline(input: &str) -> Result<Vec<u8>, EncodeError> {
         .collect()
 }
 
-/// Deserialize a board title.
+/// Deserialize a single-line string, such as a board title.
 pub fn decode_oneline(input: &[u8]) -> String {
     input.iter().map(|&x| CP437_WINGDINGS.decode(x)).collect()
 }
@@ -60,7 +64,7 @@ mod tests {
         encode_multiline(input).expect("Error in test")
     }
 
-    fn serialize_title(input: &str) -> Vec<u8> {
+    fn serialize_line(input: &str) -> Vec<u8> {
         encode_oneline(input).expect("Error in test")
     }
 
@@ -73,7 +77,7 @@ mod tests {
     #[test]
     fn roundtrip_oneline() {
         let bytes: Vec<u8> = (0..=255).collect();
-        assert_eq!(bytes, serialize_title(&decode_oneline(&bytes)))
+        assert_eq!(bytes, serialize_line(&decode_oneline(&bytes)))
     }
 
     #[test]
