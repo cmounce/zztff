@@ -69,6 +69,6 @@ pub enum Element {
     CyanText = 49,
     RedText = 50,
     PurpleText = 51,
-    BrownText = 52,
+    YellowText = 52,
     WhiteText = 53,
 }
