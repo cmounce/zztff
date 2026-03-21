@@ -34,7 +34,7 @@
 //! ```rust,no_run
 //! let bytes = std::fs::read("TOWN.ZZT")?;
 //! let world = zztff::World::from_bytes(&bytes)?;
-//! let first3: Vec<&str> = world.boards.iter().take(3).map(|b| b.name.as_str()).collect();
+//! let first3: Vec<&str> = world.boards.iter().take(3).map(|b| b.title.as_str()).collect();
 //! println!("Loaded world {:?}, {} boards.", world.name, world.boards.len());
 //! println!("First 3 boards: {:?}", first3);
 //! # Ok::<(), Box<dyn std::error::Error>>(())

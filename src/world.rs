@@ -137,7 +137,7 @@ pub struct Board {
     /// shorter limits: ZZT's internal editor artificially limits titles to 34 characters, and
     /// titles longer than 42 characters may cause visual glitches when displayed in a
     /// standard-width message box.
-    pub name: String,
+    pub title: String,
     /// The 60x25 terrain grid, stored in order from left-to-right, top-to-bottom.
     ///
     /// For convenience, [`Board::tile`] and [`Board::set_tile`] are available for coordinate-based
@@ -159,15 +159,16 @@ pub struct Board {
     pub exit_west: Option<NonZero<u8>>,
     /// Board index of the eastern neighbor, or `None` for no exit.
     pub exit_east: Option<NonZero<u8>>,
-    /// Whether the player restarts at the board entrance after taking damage.
-    pub restart_on_zap: bool,
+    /// Whether the player, upon taking damage, is transported back to where they entered the board.
+    pub reenter_when_zapped: bool,
     /// The currently-flashing status bar message (max 58 characters).
     pub message: String,
     /// X coordinate where the player entered the board (1-based).
     ///
-    /// The entrance coordinates are part of the "re-enter when zapped" feature. The values only
-    /// really matter if the user starts out on this board; they will be overwritten with the
-    /// player's actual entry coordinates during play.
+    /// The entry coordinates are part of the "re-enter when zapped" feature. These don't matter
+    /// most of the time; ZZT ignores the coordinates from the file, preferring to update these with
+    /// the player's actual entry coordinates. The only time they are ever loaded is for the current
+    /// board when the user restores a save file.
     pub enter_x: u8,
     /// Y coordinate where the player entered the board (1-based).
     pub enter_y: u8,
@@ -184,7 +185,7 @@ pub struct Board {
 impl Default for Board {
     fn default() -> Self {
         Board {
-            name: String::new(),
+            title: String::new(),
             tiles: [Tile::default(); 1500],
             max_shots: 255,
             is_dark: false,
@@ -192,8 +193,11 @@ impl Default for Board {
             exit_south: None,
             exit_west: None,
             exit_east: None,
-            restart_on_zap: false,
+            reenter_when_zapped: false,
             message: String::new(),
+            // (1, 1) is objectively a better default for enter x/y than (0, 0). It is possible to
+            // get ZZT to consume this value by restoring a game, and in that case (0, 0) will take
+            // the player out of bounds, leading to a crash.
             enter_x: 1,
             enter_y: 1,
             time_limit: 0,
@@ -213,7 +217,7 @@ impl Default for Board {
 impl Debug for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Board")
-            .field("name", &self.name)
+            .field("title", &self.title)
             .field("tiles", &format_args!("[Tile; 1500]"))
             .field("max_shots", &self.max_shots)
             .field("is_dark", &self.is_dark)
@@ -221,7 +225,7 @@ impl Debug for Board {
             .field("exit_south", &self.exit_south)
             .field("exit_west", &self.exit_west)
             .field("exit_east", &self.exit_east)
-            .field("restart_on_zap", &self.restart_on_zap)
+            .field("reenter_when_zapped", &self.reenter_when_zapped)
             .field("message", &self.message)
             .field("enter_x", &self.enter_x)
             .field("enter_y", &self.enter_y)
@@ -510,8 +514,8 @@ impl Board {
         // Ignore length bytes
         let (input, _) = le_u16.parse(bytes)?;
 
-        // Read board name
-        let (input, name) = pstring(50)(input)?;
+        // Read board title
+        let (input, title) = pstring(50)(input)?;
 
         // Read terrain
         const NUM_TILES: usize = 60 * 25;
@@ -539,7 +543,7 @@ impl Board {
         let exit_south = NonZero::new(exit_s);
         let exit_west = NonZero::new(exit_w);
         let exit_east = NonZero::new(exit_e);
-        let (input, (restart_on_zap, message)) = (bool_u8, pstring(58)).parse(input)?;
+        let (input, (reenter_when_zapped, message)) = (bool_u8, pstring(58)).parse(input)?;
         let (input, (enter_x, enter_y, time_limit)) = (le_u8, le_u8, le_i16).parse(input)?;
         let (input, _) = take(16usize)(input)?;
 
@@ -552,7 +556,7 @@ impl Board {
         let (_input, stats) = count(Stat::parse, num_stats as usize).parse(input)?;
 
         Ok(Board {
-            name,
+            title,
             tiles,
             max_shots,
             is_dark,
@@ -560,7 +564,7 @@ impl Board {
             exit_south,
             exit_east,
             exit_west,
-            restart_on_zap,
+            reenter_when_zapped,
             message,
             enter_x,
             enter_y,
@@ -573,7 +577,7 @@ impl Board {
     pub fn to_bytes(&self) -> Result<Vec<u8>, EncodeError> {
         let mut result = vec![];
         result.push_padding(2); // reserve space for board size
-        result.push_string(50, &self.name)?;
+        result.push_string(50, &self.title)?;
 
         // Encode terrain
         let mut iter = self.tiles.iter().peekable();
@@ -595,7 +599,7 @@ impl Board {
         result.push(self.exit_south.map_or(0, |n| n.get()));
         result.push(self.exit_west.map_or(0, |n| n.get()));
         result.push(self.exit_east.map_or(0, |n| n.get()));
-        result.push_bool(self.restart_on_zap);
+        result.push_bool(self.reenter_when_zapped);
         result.push_string(58, &self.message)?;
         result.push(self.enter_x);
         result.push(self.enter_y);
@@ -810,7 +814,7 @@ mod tests {
         let world = World::from_bytes(WORLD).unwrap();
         let mut all_tiles = String::new();
         for (i, board) in world.boards.iter().enumerate() {
-            all_tiles.push_str(&format!("// board {}: {}\n", i, board.name));
+            all_tiles.push_str(&format!("// board {}: {}\n", i, board.title));
             all_tiles.push_str(&format_tiles(board));
         }
         insta::assert_snapshot!(all_tiles);

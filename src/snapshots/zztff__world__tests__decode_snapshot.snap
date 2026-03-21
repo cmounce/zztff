@@ -39,7 +39,7 @@ World {
     saved_game: true,
     boards: [
         Board {
-            name: "Title screen",
+            title: "Title screen",
             tiles: [Tile; 1500],
             max_shots: 255,
             is_dark: false,
@@ -47,7 +47,7 @@ World {
             exit_south: None,
             exit_west: None,
             exit_east: None,
-            restart_on_zap: false,
+            reenter_when_zapped: false,
             message: "",
             enter_x: 1,
             enter_y: 1,
@@ -76,7 +76,7 @@ World {
             ],
         },
         Board {
-            name: "First board (NW, defaults)",
+            title: "First board (NW, defaults)",
             tiles: [Tile; 1500],
             max_shots: 255,
             is_dark: false,
@@ -88,7 +88,7 @@ World {
             exit_east: Some(
                 2,
             ),
-            restart_on_zap: false,
+            reenter_when_zapped: false,
             message: "",
             enter_x: 1,
             enter_y: 1,
@@ -117,7 +117,7 @@ World {
             ],
         },
         Board {
-            name: "Second board (NE, non-default settings)",
+            title: "Second board (NE, non-default settings)",
             tiles: [Tile; 1500],
             max_shots: 0,
             is_dark: true,
@@ -129,7 +129,7 @@ World {
                 1,
             ),
             exit_east: None,
-            restart_on_zap: true,
+            reenter_when_zapped: true,
             message: "Hello, board message!",
             enter_x: 12,
             enter_y: 34,
@@ -158,7 +158,7 @@ World {
             ],
         },
         Board {
-            name: "Third board (SE, mostly object stats)",
+            title: "Third board (SE, mostly object stats)",
             tiles: [Tile; 1500],
             max_shots: 255,
             is_dark: false,
@@ -170,7 +170,7 @@ World {
                 4,
             ),
             exit_east: None,
-            restart_on_zap: false,
+            reenter_when_zapped: false,
             message: "",
             enter_x: 1,
             enter_y: 1,
@@ -299,7 +299,7 @@ World {
             ],
         },
         Board {
-            name: "Fourth board (SW, other stats)",
+            title: "Fourth board (SW, other stats)",
             tiles: [Tile; 1500],
             max_shots: 255,
             is_dark: false,
@@ -311,7 +311,7 @@ World {
             exit_east: Some(
                 3,
             ),
-            restart_on_zap: false,
+            reenter_when_zapped: false,
             message: "",
             enter_x: 1,
             enter_y: 1,
