@@ -574,6 +574,11 @@ impl Board {
     }
 
     /// Serialize this board to bytes.
+    ///
+    /// Returns [`EncodeError::BoardTooLarge`] if the board is over 64 KiB when serialized. The file
+    /// format allows up to this size, but be aware that boards larger than 20 kB will cause memory
+    /// corruption in ZZT 3.2. Tools may want to warn the user if this function returns more than
+    /// 20,002 bytes (2 byte size header + 20 kB content).
     pub fn to_bytes(&self) -> Result<Vec<u8>, EncodeError> {
         let mut result = vec![];
         result.push_padding(2); // reserve space for board size
