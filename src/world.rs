@@ -125,7 +125,7 @@ pub struct Keys {
 ///
 /// Boards mainly exist within a containing [`World`]. But as part of a editing workflow, they can
 /// also be packaged as standalone .BRD files, which use the same format; use
-/// [`Board::from_brd_bytes`] to parse one.
+/// [`Board::from_bytes`] to parse one.
 #[derive(Clone)]
 pub struct Board {
     /// The board's title.
@@ -505,7 +505,7 @@ impl Board {
         self.tiles[(y - 1) * 60 + (x - 1)] = tile;
     }
 
-    /// Parse a board from bytes (including the 2-byte size header).
+    /// Parse a ZZT board from bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Board, DecodeError> {
         // Ignore length bytes
         let (input, _) = le_u16.parse(bytes)?;
@@ -567,11 +567,6 @@ impl Board {
             time_limit,
             stats,
         })
-    }
-
-    /// Parse a standalone .brd file (same format, no world header).
-    pub fn from_brd_bytes(bytes: &[u8]) -> Result<Board, DecodeError> {
-        Board::from_bytes(bytes)
     }
 
     /// Serialize this board to bytes.
@@ -764,22 +759,33 @@ mod tests {
     use super::*;
     use insta::assert_debug_snapshot;
 
-    const BYTES: &[u8] = include_bytes!("../tests/fixtures/all.zzt");
+    const WORLD: &[u8] = include_bytes!("../tests/fixtures/all.zzt");
+    const BOARD: &[u8] = include_bytes!("../tests/fixtures/title.brd");
 
     #[test]
     fn roundtrip() {
-        let world = World::from_bytes(BYTES).unwrap();
+        let world = World::from_bytes(WORLD).unwrap();
         let encoded = world.to_bytes().unwrap();
-        assert_eq!(BYTES, &encoded[..]);
+        assert_eq!(WORLD, &encoded[..]);
     }
 
     #[test]
     fn decode_snapshot() {
-        let world = World::from_bytes(BYTES).unwrap();
+        let world = World::from_bytes(WORLD).unwrap();
         assert_debug_snapshot!(world);
     }
 
-    /// Format board terrain as two hex grids (elements, then colors).
+    #[test]
+    fn brd_roundtrip() {
+        // We don't bother with a snapshot test for the individual board case, because the world
+        // snapshot already exercises the contents of boards. This test is just to make sure it's
+        // *possible* to read/write standalone board files.
+        let board = Board::from_bytes(BOARD).unwrap();
+        let encoded = board.to_bytes().unwrap();
+        assert_eq!(BOARD, &encoded[..]);
+    }
+
+    /// Test helper: format board terrain as two hex grids (elements, then colors).
     fn format_tiles(board: &Board) -> String {
         let mut out = String::new();
         for y in 1..=25 {
@@ -801,7 +807,7 @@ mod tests {
 
     #[test]
     fn tiles_snapshot() {
-        let world = World::from_bytes(BYTES).unwrap();
+        let world = World::from_bytes(WORLD).unwrap();
         let mut all_tiles = String::new();
         for (i, board) in world.boards.iter().enumerate() {
             all_tiles.push_str(&format!("// board {}: {}\n", i, board.name));
