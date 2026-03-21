@@ -267,9 +267,9 @@ pub struct Stat {
     /// are possible and are useful for advanced techniques, but care must be taken to ensure that
     /// they are safe; ZZT's bounds checking code assumes step distances will never exceed 1, so
     /// steps larger than that may go off-board and cause memory corruption.
-    pub x_step: i16,
+    pub step_x: i16,
     /// Vertical step delta.
-    pub y_step: i16,
+    pub step_y: i16,
     /// How often this stat is updated, in game ticks.
     ///
     /// Roughly speaking, stats update every 1/cycle game ticks. A cycle 1 object will run its code
@@ -330,8 +330,8 @@ impl Default for Stat {
         Stat {
             x: 0,
             y: 0,
-            x_step: 0,
-            y_step: 0,
+            step_x: 0,
+            step_y: 0,
             cycle: 0,
             p1: 0,
             p2: 0,
@@ -625,7 +625,7 @@ impl Board {
 
 impl Stat {
     fn parse(input: &[u8]) -> IResult<&[u8], Self, DecodeError> {
-        let (input, (x, y, x_step, y_step)) = (le_u8, le_u8, le_i16, le_i16).parse(input)?;
+        let (input, (x, y, step_x, step_y)) = (le_u8, le_u8, le_i16, le_i16).parse(input)?;
         let (input, (cycle, p1, p2, p3)) = (le_i16, le_u8, le_u8, le_u8).parse(input)?;
         let (input, (follower, leader)) = (le_i16, le_i16).parse(input)?;
         let (input, (under_element, under_color)) = (le_u8, le_u8).parse(input)?;
@@ -650,8 +650,8 @@ impl Stat {
             Stat {
                 x,
                 y,
-                x_step,
-                y_step,
+                step_x,
+                step_y,
                 follower,
                 leader,
                 cycle,
@@ -672,8 +672,8 @@ impl Stat {
         let mut result = vec![];
         result.push(self.x);
         result.push(self.y);
-        result.push_i16(self.x_step);
-        result.push_i16(self.y_step);
+        result.push_i16(self.step_x);
+        result.push_i16(self.step_y);
         result.push_i16(self.cycle);
         result.push(self.p1);
         result.push(self.p2);
