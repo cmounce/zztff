@@ -195,7 +195,7 @@ impl Default for Board {
             exit_east: None,
             reenter_when_zapped: false,
             message: String::new(),
-            // (1, 1) is objectively a better default for enter x/y than (0, 0). It is possible to
+            // (1, 1) is an objectively better default for enter x/y than (0, 0). It is possible to
             // get ZZT to consume this value by restoring a game, and in that case (0, 0) will take
             // the player out of bounds, leading to a crash.
             enter_x: 1,
